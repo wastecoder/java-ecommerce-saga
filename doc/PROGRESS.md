@@ -38,13 +38,22 @@ Roadmap em fases para construir o MVP. A sequência **fecha a saga cedo** e vai 
   - **Config**: datasource → `orderdb` (database-per-service; `spring.docker.compose.enabled: false`, dev sobe a infra com `docker compose up -d postgres`); `ddl-auto: validate`.
   - **Decisão de preço:** `unitPrice` por **snapshot no request** no MVP; `catalog-service` como autoridade de preço fica para o FUTURE (Fase 11). O `StockItem` (§7) segue só com disponibilidade.
   - **Verificado:** `:order-service:build` **verde** — unit (domínio/use cases/`@WebMvcTest`/mapper/ProblemType) + `OrderRepositoryImplIntegrationTest` (Testcontainers, valida Flyway); **JaCoCo LINE 0.96 / BRANCH 0.96**. Smoke manual: `POST /orders` → 201 (`PENDING`, `totalAmount` somado), `GET` → 200, id aleatório → 404 ProblemDetail.
-- [ ] `inventory-service`: domínio (StockItem/StockReservation), `GET /stock`, seed inicial
-- [ ] Problem Details (RFC 7807) + `GlobalExceptionHandler`
+- [x] ~~`inventory-service`: domínio (StockItem/StockReservation), `GET /stock`, seed inicial~~
+  - **Hexagonal horizontal** (mesma convenção do order: `adapter.web.handler` + `adapter.persistence.{entity,mapper,database}`). **Domínio**: record `StockItem(productId, available, reserved)` (`productId` = identidade) + `DomainException`/`StockItemNotFoundException`. **`StockReservation` adiado p/ a Fase 2** (ver item abaixo).
+  - **Aplicação**: `ListStockUseCase`/`GetStockUseCase`/`SeedStockUseCase` (in), `StockRepository` (out), `SeedResult`; impls `@Service`/`@Transactional`.
+  - **Web**: `StockController` (`GET /stock` → lista; `GET /stock/{productId}` → 200/404), `StockResponse`, `GlobalExceptionHandler` + `ProblemType` (RFC 7807, inclui `STOCK_ITEM_NOT_FOUND`).
+  - **Persistência**: `entity/StockItemEntity`, `mapper/StockItemEntityMapper` (MapStruct), `database/StockItemJpaDatabase`, `StockRepositoryImpl`. Flyway `V1__create_stock_tables.sql` (só `stock_items`).
+  - **Seed inicial** (estilo `partners-api`): `adapter/seed/StockSeederRunner` (`@Profile("seed")` + `CommandLineRunner`) lê `seed/sample-stock.json` (4 product UUIDs fixos `a1..a4`) → `SeedStockUseCase` **idempotente**. `spring.profiles.active: seed` no dev; `test` nos testes.
+  - **Config**: datasource → `inventorydb`; `ddl-auto: validate`; `docker.compose.enabled: false`.
+  - **Verificado:** `:inventory-service:build` **verde** — unit + `StockRepositoryImplIntegrationTest` + `StockSeederIntegrationTest` (`@ActiveProfiles("seed")`, Testcontainers); **JaCoCo LINE 0.97 / BRANCH 1.00**. Smoke: `GET /stock` → 200 com os 4 itens semeados; `GET /stock/{id}` → 200; id aleatório → 404 ProblemDetail.
+- [x] ~~Problem Details (RFC 7807) + `GlobalExceptionHandler`~~
+  - Implementado em `order-service` e `inventory-service` (`adapter.web.handler` + `ProblemType` por serviço). Replicar nos próximos serviços.
 - **Critério:** criar pedido (`PENDING`) e consultar estoque via REST (sem Kafka ainda).
 
 ## 🔄 Fase 2 — Kafka + SAGA orquestrada (núcleo)
 - [ ] Configurar tópicos, produtor idempotente e consumidores
 - [ ] `OrderSagaCoordinator`: `ReserveStock → ProcessPayment → Confirm` e compensação `ReleaseStock`
+- [ ] **inventory: `StockReservation`/`ReservationStatus` + tabela `stock_reservations` + casos de uso ReserveStock/ReleaseStock** (adiado da Fase 1; nasce junto do consumidor `inventory.commands`)
 - [ ] Idempotência (`processed_messages`) + DLT por consumidor
 - **Critério:** pedido feliz **confirma**; sem estoque **rejeita**; pagamento recusado **cancela com compensação**.
 
