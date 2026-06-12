@@ -22,8 +22,12 @@ Roadmap em fases para construir o MVP. A sequência **fecha a saga cedo** e vai 
   - **`infra/init-db.sql`** cria os 4 bancos **database-per-service** (`orderdb`/`inventorydb`/`paymentdb`/`notificationdb`) — roda só na **primeira** init do volume (`/docker-entrypoint-initdb.d`).
   - **`.env.example`** (versionado) + **`.env`** (local, agora no `.gitignore` com `!.env.example`) com credenciais/portas; o compose usa `${VAR:-default}`, então sobe sem `.env`.
   - **Fora deste item:** os **tópicos** (`inventory.commands`, `payment.commands`, `order.events`, `inventory.events`, `payment.events` + `*.DLT`) virão de `KafkaTopicsConfig` (`NewTopic`) na **Fase 2**. O wiring de **datasource por serviço** + a interação do `spring-boot-docker-compose` no `bootRun` são da **Fase 1**.
-- [ ] `discovery-server` (Eureka) e `api-gateway` com uma rota dummy
-- **Critério:** `docker compose up` sobe a infra e o gateway resolve um serviço via Eureka.
+- [x] ~~`discovery-server` (Eureka) e `api-gateway` com uma rota dummy~~
+  - **`discovery-server`**: `@EnableEurekaServer` na app class (config standalone já existia — `:8761`, `register-with-eureka`/`fetch-registry: false`). Dashboard em `http://localhost:8761`.
+  - **`api-gateway`**: rota dummy via **bean `RouteLocator` em Java** (`config/GatewayRoutesConfig`) — `/dummy/**` → `StripPrefix=1` → **`lb://api-gateway`** (encaminha ao próprio actuator). Adicionado **`spring-cloud-starter-loadbalancer`** (necessário p/ `lb://` no gateway 2025.x). Actuator `gateway` exposto + habilitado (`management.endpoint.gateway.access: unrestricted`, sintaxe Boot 4).
+  - **Verificado:** `:discovery-server:test` + `:api-gateway:test` verdes (2 `contextLoads`, sem Docker). Smoke manual: `API-GATEWAY` registrado no Eureka; `GET /dummy/actuator/health` → **200 `{"status":"UP"}`** (gateway resolveu o serviço via Eureka — critério da fase); `GET /actuator/gateway/routes` lista a `dummy-route`.
+  - **Fora deste item:** rotas reais p/ `order-service`/`inventory-service`, filtros (rate limit, JWT), circuit breaker → Fases 1/2/6.
+- **Critério:** ~~`docker compose up` sobe a infra e o gateway resolve um serviço via Eureka.~~ ✅ **Fase 0 concluída.**
 
 ## 🧩 Fase 1 — Order & Inventory (REST + JPA, hexagonal horizontal)
 - [ ] `order-service`: domínio (Order/OrderItem/OrderStatus), portas, use cases, Flyway, `POST/GET /orders`
