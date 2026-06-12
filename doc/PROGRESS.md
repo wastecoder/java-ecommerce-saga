@@ -30,7 +30,14 @@ Roadmap em fases para construir o MVP. A sequência **fecha a saga cedo** e vai 
 - **Critério:** ~~`docker compose up` sobe a infra e o gateway resolve um serviço via Eureka.~~ ✅ **Fase 0 concluída.**
 
 ## 🧩 Fase 1 — Order & Inventory (REST + JPA, hexagonal horizontal)
-- [ ] `order-service`: domínio (Order/OrderItem/OrderStatus), portas, use cases, Flyway, `POST/GET /orders`
+- [x] ~~`order-service`: domínio (Order/OrderItem/OrderStatus), portas, use cases, Flyway, `POST/GET /orders`~~
+  - **Hexagonal horizontal** espelhando o `partners-api`. **Domínio**: records `Order`/`OrderItem` (Bean Validation) + factory `Order.place(...)` que **congela** o `unitPrice` do request e calcula `totalAmount`; enum `OrderStatus` (6 valores do §7, só `PENDING` usado); `DomainException` + `OrderNotFoundException`.
+  - **Aplicação**: portas `PlaceOrderUseCase`/`GetOrderUseCase` (in), `OrderRepository` (out), `PlaceOrderCommand`; impls `@Service`/`@Transactional`, validação via `Validator`.
+  - **Web**: `OrderController` (`POST /orders` → 201+`Location`; `GET /orders/{id}` → 200), DTOs record com `toCommand()`/`from()`, `GlobalExceptionHandler` (`@RestControllerAdvice`) + `ProblemType` (**RFC 7807**).
+  - **Persistência**: `OrderEntity`/`OrderItemEntity` (JPA+Lombok, `@OneToMany`), `OrderJpaDatabase`, `OrderRepositoryImpl` (`@Transactional` p/ inicializar a coleção lazy ao mapear), **`OrderEntityMapper` (MapStruct** + `@AfterMapping` p/ back-ref). Flyway `V1__create_order_tables.sql`.
+  - **Config**: datasource → `orderdb` (database-per-service; `spring.docker.compose.enabled: false`, dev sobe a infra com `docker compose up -d postgres`); `ddl-auto: validate`.
+  - **Decisão de preço:** `unitPrice` por **snapshot no request** no MVP; `catalog-service` como autoridade de preço fica para o FUTURE (Fase 11). O `StockItem` (§7) segue só com disponibilidade.
+  - **Verificado:** `:order-service:build` **verde** — unit (domínio/use cases/`@WebMvcTest`/mapper/ProblemType) + `OrderRepositoryImplIntegrationTest` (Testcontainers, valida Flyway); **JaCoCo LINE 0.96 / BRANCH 0.96**. Smoke manual: `POST /orders` → 201 (`PENDING`, `totalAmount` somado), `GET` → 200, id aleatório → 404 ProblemDetail.
 - [ ] `inventory-service`: domínio (StockItem/StockReservation), `GET /stock`, seed inicial
 - [ ] Problem Details (RFC 7807) + `GlobalExceptionHandler`
 - **Critério:** criar pedido (`PENDING`) e consultar estoque via REST (sem Kafka ainda).

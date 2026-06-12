@@ -1,3 +1,6 @@
 eureka:
   client:
     enabled: false
+
+problem-details:
+  base-uri: https://wastecoder.com/problems
