@@ -1,5 +1,7 @@
 package com.wastecoder.shopflow.order.application.usecase;
 
+import com.wastecoder.shopflow.order.application.port.out.OrderCommandPublisher;
+import com.wastecoder.shopflow.order.application.port.out.OrderEventPublisher;
 import com.wastecoder.shopflow.order.application.port.out.OrderRepository;
 import com.wastecoder.shopflow.order.domain.model.Order;
 import com.wastecoder.shopflow.order.domain.model.OrderStatus;
@@ -33,6 +35,12 @@ class PlaceOrderUseCaseImplTest {
 	private OrderRepository repository;
 
 	@Mock
+	private OrderEventPublisher eventPublisher;
+
+	@Mock
+	private OrderCommandPublisher commandPublisher;
+
+	@Mock
 	private Validator validator;
 
 	@InjectMocks
@@ -61,6 +69,9 @@ class PlaceOrderUseCaseImplTest {
 			assertThat(item.quantity()).isEqualTo(2);
 			assertThat(item.unitPrice()).isEqualByComparingTo(new BigDecimal("10.50"));
 		});
+
+		verify(eventPublisher).orderCreated(result);
+		verify(commandPublisher).reserveStock(result);
 	}
 
 	@Test
@@ -75,5 +86,7 @@ class PlaceOrderUseCaseImplTest {
 				.isInstanceOf(ConstraintViolationException.class);
 
 		verify(repository, never()).save(any(Order.class));
+		verify(eventPublisher, never()).orderCreated(any());
+		verify(commandPublisher, never()).reserveStock(any());
 	}
 }

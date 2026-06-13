@@ -1,6 +1,8 @@
 package com.wastecoder.shopflow.order.application.usecase;
 
 import com.wastecoder.shopflow.order.application.port.in.PlaceOrderUseCase;
+import com.wastecoder.shopflow.order.application.port.out.OrderCommandPublisher;
+import com.wastecoder.shopflow.order.application.port.out.OrderEventPublisher;
 import com.wastecoder.shopflow.order.application.port.out.OrderRepository;
 import com.wastecoder.shopflow.order.application.viewmodel.PlaceOrderCommand;
 import com.wastecoder.shopflow.order.domain.model.Order;
@@ -20,10 +22,15 @@ import java.util.UUID;
 public class PlaceOrderUseCaseImpl implements PlaceOrderUseCase {
 
 	private final OrderRepository repository;
+	private final OrderEventPublisher eventPublisher;
+	private final OrderCommandPublisher commandPublisher;
 	private final Validator validator;
 
-	public PlaceOrderUseCaseImpl(OrderRepository repository, Validator validator) {
+	public PlaceOrderUseCaseImpl(OrderRepository repository, OrderEventPublisher eventPublisher,
+			OrderCommandPublisher commandPublisher, Validator validator) {
 		this.repository = repository;
+		this.eventPublisher = eventPublisher;
+		this.commandPublisher = commandPublisher;
 		this.validator = validator;
 	}
 
@@ -35,7 +42,11 @@ public class PlaceOrderUseCaseImpl implements PlaceOrderUseCase {
 				.toList();
 		Order order = Order.place(UUID.randomUUID(), command.customerId(), items, Instant.now());
 		ensureValid(order);
-		return repository.save(order);
+		Order saved = repository.save(order);
+		// Start the saga: announce the order, then ask inventory to reserve stock.
+		eventPublisher.orderCreated(saved);
+		commandPublisher.reserveStock(saved);
+		return saved;
 	}
 
 	private void ensureValid(Order order) {

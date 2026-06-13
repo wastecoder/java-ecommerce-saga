@@ -1,5 +1,6 @@
 package com.wastecoder.shopflow.order.adapter.config;
 
+import com.wastecoder.shopflow.order.adapter.messaging.Topics;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,16 +22,16 @@ public class KafkaTopicsConfig {
 
 	@Bean
 	NewTopic inventoryCommandsTopic() {
-		return TopicBuilder.name("inventory.commands").partitions(PARTITIONS).replicas(REPLICAS).build();
+		return TopicBuilder.name(Topics.INVENTORY_COMMANDS).partitions(PARTITIONS).replicas(REPLICAS).build();
 	}
 
 	@Bean
 	NewTopic paymentCommandsTopic() {
-		return TopicBuilder.name("payment.commands").partitions(PARTITIONS).replicas(REPLICAS).build();
+		return TopicBuilder.name(Topics.PAYMENT_COMMANDS).partitions(PARTITIONS).replicas(REPLICAS).build();
 	}
 
 	@Bean
 	NewTopic orderEventsTopic() {
-		return TopicBuilder.name("order.events").partitions(PARTITIONS).replicas(REPLICAS).build();
+		return TopicBuilder.name(Topics.ORDER_EVENTS).partitions(PARTITIONS).replicas(REPLICAS).build();
 	}
 }

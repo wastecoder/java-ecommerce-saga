@@ -1,5 +1,6 @@
 package com.wastecoder.shopflow.order.domain.model;
 
+import com.wastecoder.shopflow.order.domain.exception.InvalidOrderStateException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -42,5 +43,37 @@ public record Order(
 				.map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())))
 				.reduce(BigDecimal.ZERO, BigDecimal::add);
 		return new Order(id, customerId, OrderStatus.PENDING, totalAmount, createdAt, List.copyOf(items));
+	}
+
+	/** PENDING → STOCK_RESERVED, after inventory confirms the reservation. */
+	public Order markStockReserved() {
+		return transitionTo(OrderStatus.STOCK_RESERVED, OrderStatus.PENDING, "markStockReserved");
+	}
+
+	/** STOCK_RESERVED → PAID, after the payment is authorized. */
+	public Order markPaid() {
+		return transitionTo(OrderStatus.PAID, OrderStatus.STOCK_RESERVED, "markPaid");
+	}
+
+	/** PAID → CONFIRMED, the successful terminal state. */
+	public Order confirm() {
+		return transitionTo(OrderStatus.CONFIRMED, OrderStatus.PAID, "confirm");
+	}
+
+	/** PENDING → REJECTED, when stock could not be reserved (nothing to compensate). */
+	public Order reject() {
+		return transitionTo(OrderStatus.REJECTED, OrderStatus.PENDING, "reject");
+	}
+
+	/** STOCK_RESERVED → CANCELLED, when payment fails (after compensating the reservation). */
+	public Order cancel() {
+		return transitionTo(OrderStatus.CANCELLED, OrderStatus.STOCK_RESERVED, "cancel");
+	}
+
+	private Order transitionTo(OrderStatus target, OrderStatus required, String transition) {
+		if (status != required) {
+			throw new InvalidOrderStateException(id, status, transition);
+		}
+		return new Order(id, customerId, target, totalAmount, createdAt, items);
 	}
 }

@@ -32,10 +32,35 @@ public final class OrderMother {
 
 	/** A persisted PENDING order with a single item; totalAmount = 2 * 10.50 = 21.00. */
 	public static Order aPendingOrder() {
+		return anOrderInStatus(OrderStatus.PENDING);
+	}
+
+	public static Order aStockReservedOrder() {
+		return anOrderInStatus(OrderStatus.STOCK_RESERVED);
+	}
+
+	public static Order aPaidOrder() {
+		return anOrderInStatus(OrderStatus.PAID);
+	}
+
+	public static Order aConfirmedOrder() {
+		return anOrderInStatus(OrderStatus.CONFIRMED);
+	}
+
+	public static Order aRejectedOrder() {
+		return anOrderInStatus(OrderStatus.REJECTED);
+	}
+
+	public static Order aCancelledOrder() {
+		return anOrderInStatus(OrderStatus.CANCELLED);
+	}
+
+	/** A persisted order with a single item (totalAmount 21.00) in the given status. */
+	public static Order anOrderInStatus(OrderStatus status) {
 		return new Order(
 				ORDER_ID,
 				CUSTOMER_ID,
-				OrderStatus.PENDING,
+				status,
 				new BigDecimal("21.00"),
 				CREATED_AT,
 				List.of(aValidItem()));
