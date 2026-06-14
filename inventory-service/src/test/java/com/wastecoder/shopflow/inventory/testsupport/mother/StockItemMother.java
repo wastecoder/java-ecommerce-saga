@@ -19,4 +19,13 @@ public final class StockItemMother {
 	public static StockItem aStockItemFor(UUID productId, int available) {
 		return new StockItem(productId, available, 0);
 	}
+
+	public static StockItem aStockItemFor(UUID productId, int available, int reserved) {
+		return new StockItem(productId, available, reserved);
+	}
+
+	/** A stock item that already has 2 units reserved (98 available), for release scenarios. */
+	public static StockItem aReservedStockItem() {
+		return new StockItem(PRODUCT_ID, 98, 2);
+	}
 }
