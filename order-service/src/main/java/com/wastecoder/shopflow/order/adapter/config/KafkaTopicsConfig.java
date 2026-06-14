@@ -12,7 +12,11 @@ import org.springframework.kafka.config.TopicBuilder;
  *
  * <p>Single-node KRaft dev broker: replication factor 1. Three partitions allow per-order
  * parallelism while {@code key=orderId} keeps each order's messages on one partition (ordering).
- * Dead-letter topics ({@code *.DLT}) are introduced with the consumer error handling (Fase 2, item 4).
+ *
+ * <p>The {@code *.DLT} topics are declared by the consuming service (it owns its own dead letter): this
+ * service consumes {@code inventory.events} and {@code payment.events}, so it provisions their DLTs. They
+ * keep the same partition count as the source because {@link com.wastecoder.shopflow.order.adapter.config.KafkaErrorHandlingConfig}
+ * routes a failed record to the same partition number on the DLT.
  */
 @Configuration
 public class KafkaTopicsConfig {
@@ -33,5 +37,15 @@ public class KafkaTopicsConfig {
 	@Bean
 	NewTopic orderEventsTopic() {
 		return TopicBuilder.name(Topics.ORDER_EVENTS).partitions(PARTITIONS).replicas(REPLICAS).build();
+	}
+
+	@Bean
+	NewTopic inventoryEventsDltTopic() {
+		return TopicBuilder.name(Topics.INVENTORY_EVENTS + ".DLT").partitions(PARTITIONS).replicas(REPLICAS).build();
+	}
+
+	@Bean
+	NewTopic paymentEventsDltTopic() {
+		return TopicBuilder.name(Topics.PAYMENT_EVENTS + ".DLT").partitions(PARTITIONS).replicas(REPLICAS).build();
 	}
 }

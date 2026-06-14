@@ -22,9 +22,12 @@ import java.util.function.Consumer;
  * <p>Each reply loads the order, applies a domain transition and then publishes the next command or
  * terminal event. A reply for an unknown order, or one whose transition is illegal for the current
  * state (a duplicate or out-of-order delivery), is logged and ignored — no state change, no publish.
- * This gives partial idempotency via domain state guards until the {@code processed_messages} table
- * and DLT arrive (item 4). DB write and Kafka publish are not atomic in the MVP (Transactional Outbox
- * is future work); operations are ordered save-then-publish.
+ * These domain state guards absorb a <em>re-issued</em> reply (a new {@code eventId}); a true redelivery
+ * of the same {@code eventId} is short-circuited earlier by the {@code processed_messages} dedup in the
+ * listener. The {@code catch} below stays narrow on purpose: only {@link InvalidOrderStateException} is an
+ * idempotent no-op (its marker still commits); any other exception propagates, rolls back the marker and is
+ * routed to the DLT. DB write and Kafka publish are still not atomic in the MVP (Transactional Outbox is
+ * future work); operations are ordered save-then-publish.
  */
 @Service
 public class OrderSagaCoordinator implements HandleStockReplyUseCase, HandlePaymentReplyUseCase {
