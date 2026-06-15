@@ -45,8 +45,10 @@ dependencyManagement {
 pitest {
 	targetClasses.set(setOf(
 		"com.wastecoder.shopflow.notification.application.*",
+		"com.wastecoder.shopflow.notification.adapter.web.*Controller",
 	))
 	targetTests.set(setOf(
 		"com.wastecoder.shopflow.notification.application.*Test",
+		"com.wastecoder.shopflow.notification.adapter.web.*ControllerTest",
 	))
 }
