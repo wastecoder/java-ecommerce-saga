@@ -1,3 +1,33 @@
+spring:
+  # The test application.yaml shadows src/main (Spring Boot loads classpath:/application.yaml from the
+  # first classpath root only), so the Kafka serde config that production needs is mirrored here. The PSP
+  # block is intentionally omitted: PspProperties carries the same defaults in Java, keeping the mock
+  # deterministic in tests (DECLINE_ABOVE_THRESHOLD, decline-threshold 1000.00).
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: payment-service
+      auto-offset-reset: earliest
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.wastecoder.shopflow.payment.adapter.messaging.EventEnvelope
+        spring.json.trusted.packages: com.wastecoder.shopflow.payment.adapter.messaging
+
 eureka:
   client:
     enabled: false
+
+problem-details:
+  base-uri: https://wastecoder.com/problems
