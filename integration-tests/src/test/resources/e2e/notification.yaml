@@ -1,0 +1,39 @@
+# E2E config for the notification-service context (no HTTP needed; notifications are asserted via its
+# repository bean). The producer block is required for its dead-letter recoverer and KafkaTemplate.
+spring:
+  main:
+    web-application-type: none
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: notification-service
+      auto-offset-reset: earliest
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.wastecoder.shopflow.notification.adapter.messaging.EventEnvelope
+        spring.json.trusted.packages: com.wastecoder.shopflow.notification.adapter.messaging
+
+eureka:
+  client:
+    enabled: false
+
+problem-details:
+  base-uri: https://wastecoder.com/problems

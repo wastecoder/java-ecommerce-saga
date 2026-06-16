@@ -103,7 +103,11 @@ Roadmap em fases para construir o MVP. A sequência **fecha a saga cedo** e vai 
 - **Critério:** ~~notificação registrada em confirm e cancel.~~ ✅ **Fase 3 concluída.**
 
 ## ✅ Fase 4 — Qualidade
-- [ ] Testes com **Testcontainers** (Kafka + PostgreSQL) cobrindo happy path + compensação
+- [x] ~~Testes com **Testcontainers** (Kafka + PostgreSQL) cobrindo happy path + compensação~~
+  - **Novo módulo `integration-tests`** (subprojeto Gradle só de teste, sem `src/main`/`bootJar`) com `OrderSagaEndToEndIntegrationTest`: um teste **ponta-a-ponta real** que sobe os **quatro serviços** (`order`/`inventory`/`payment`/`notification`) como contextos Spring independentes no mesmo JVM contra **um Kafka** + **um PostgreSQL** compartilhados (um banco por serviço). Nada é simulado — o pedido entra por **REST** (`POST /orders`) e o fluxo é observado pelos repositórios de cada serviço.
+  - **Cenários (3):** happy path → `CONFIRMED` (estoque 98/2, pagamento `AUTHORIZED`, notificação `ORDER_CONFIRMED`); pagamento acima do threshold do PSP → `PaymentFailed` → **compensação** `ReleaseStock` → `CANCELLED` (estoque restaurado 100/0, pagamento `FAILED`, notificação `ORDER_CANCELLED`); estoque insuficiente → `REJECTED` (sem pagamento, estoque intacto, notificação `ORDER_REJECTED`).
+  - **Decisões:** cada `@SpringBootApplication` faz component/entity-scan só do seu pacote → os 4 contextos não vazam beans/entidades. Colisões de classpath resolvidas por contexto: `--spring.config.location=classpath:/e2e/<svc>.yaml` (em vez dos 4 `application.yaml` mesclados) e **Flyway desligado + `ddl-auto=create-drop`** (as 4 migrações `db/migration` têm versões repetidas e não convivem num classpath; o schema Flyway real já é validado pelos testes por serviço). Tópicos **pré-criados com 3 partições** antes de subir os contextos (senão o primeiro consumidor auto-cria com 1 partição e a saga trava).
+  - **Verificado:** `:integration-tests:integrationTest` **verde** (3/3) e **`./gradlew check` verde** em todos os módulos (critério da fase). Os testes por serviço existentes (que simulam os vizinhos) permanecem; o comentário defasado do `OrderSagaIntegrationTest` foi atualizado.
 - [ ] Padrão **Object Mother** + `@DisplayName` Given/When/Then
 - [ ] Gates **JaCoCo + Pitest** e **OpenAPI/Swagger** em todos os serviços
 - **Critério:** `./gradlew check` verde com testes de integração.

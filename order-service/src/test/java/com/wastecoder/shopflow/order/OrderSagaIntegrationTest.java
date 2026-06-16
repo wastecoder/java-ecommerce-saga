@@ -27,9 +27,11 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Drives the saga through its real listeners and publishers, simulating the not-yet-built inventory
- * (item 3) and payment (Fase 3) services by publishing fake reply events. The app's own EventPublisher
- * is reused to publish the fakes so they match the on-the-wire envelope exactly.
+ * Drives the order-service saga in isolation through its real listeners and publishers, simulating the
+ * inventory and payment services by publishing fake reply events. The app's own EventPublisher is reused to
+ * publish the fakes so they match the on-the-wire envelope exactly. The full cross-service flow, with all
+ * services running against one broker, is covered by {@code OrderSagaEndToEndIntegrationTest} in the
+ * integration-tests module.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest

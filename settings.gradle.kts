@@ -7,4 +7,5 @@ include(
 	"inventory-service",
 	"payment-service",
 	"notification-service",
+	"integration-tests",
 )
