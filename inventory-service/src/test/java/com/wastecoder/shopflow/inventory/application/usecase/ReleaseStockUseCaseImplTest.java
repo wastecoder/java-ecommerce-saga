@@ -51,7 +51,7 @@ class ReleaseStockUseCaseImplTest {
 		when(reservationRepository.findByOrderIdAndStatus(StockCommandMother.ORDER_ID, ReservationStatus.RESERVED))
 				.thenReturn(List.of(reserved));
 		when(stockRepository.findByProductId(StockItemMother.PRODUCT_ID))
-				.thenReturn(Optional.of(new StockItem(StockItemMother.PRODUCT_ID, 98, 2)));
+				.thenReturn(Optional.of(StockItemMother.aStockItemFor(StockItemMother.PRODUCT_ID, 98, 2)));
 
 		useCase.execute(StockCommandMother.aValidCommand());
 
@@ -79,9 +79,9 @@ class ReleaseStockUseCaseImplTest {
 		when(reservationRepository.findByOrderIdAndStatus(StockCommandMother.ORDER_ID, ReservationStatus.RESERVED))
 				.thenReturn(List.of(r1, r2));
 		when(stockRepository.findByProductId(StockItemMother.PRODUCT_ID))
-				.thenReturn(Optional.of(new StockItem(StockItemMother.PRODUCT_ID, 98, 2)));
+				.thenReturn(Optional.of(StockItemMother.aStockItemFor(StockItemMother.PRODUCT_ID, 98, 2)));
 		when(stockRepository.findByProductId(StockItemMother.OTHER_PRODUCT_ID))
-				.thenReturn(Optional.of(new StockItem(StockItemMother.OTHER_PRODUCT_ID, 49, 1)));
+				.thenReturn(Optional.of(StockItemMother.aStockItemFor(StockItemMother.OTHER_PRODUCT_ID, 49, 1)));
 
 		useCase.execute(StockCommandMother.aValidCommand());
 

@@ -55,6 +55,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * services ship overlapping {@code db/migration} versions that cannot share a classpath). The per-service
  * Flyway schemas are already validated by each module's own integration tests; this test covers the
  * cross-service wiring.
+ *
+ * <p>Fixtures are built inline here (stock seeded via {@code new StockItem(...)} and the request body as a
+ * {@code Map}) rather than with the Object Mother pattern: the services' Mothers live in their
+ * {@code src/test} and are not reachable from another module, and inline arrange is acceptable for a
+ * black-box E2E test driven over REST.
  */
 class OrderSagaEndToEndIntegrationTest {
 

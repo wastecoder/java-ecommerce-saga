@@ -6,6 +6,7 @@ import com.wastecoder.shopflow.inventory.application.port.out.StockRepository;
 import com.wastecoder.shopflow.inventory.application.port.out.StockReservationRepository;
 import com.wastecoder.shopflow.inventory.domain.model.ReservationStatus;
 import com.wastecoder.shopflow.inventory.domain.model.StockItem;
+import com.wastecoder.shopflow.inventory.testsupport.mother.StockItemMother;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -75,7 +76,7 @@ class StockCommandResilienceIntegrationTest {
 		UUID orderId = UUID.randomUUID();
 		UUID productId = UUID.randomUUID();
 		UUID eventId = UUID.randomUUID();
-		stockRepository.save(new StockItem(productId, 100, 0));
+		stockRepository.save(StockItemMother.aStockItemFor(productId, 100));
 		EventEnvelope command = new EventEnvelope(eventId, MessageType.RESERVE_STOCK, orderId.toString(),
 				Instant.now(), payload(orderId, productId, 2));
 

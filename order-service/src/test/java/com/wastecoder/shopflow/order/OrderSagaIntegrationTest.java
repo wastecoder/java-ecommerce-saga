@@ -51,7 +51,7 @@ class OrderSagaIntegrationTest {
 	private OrderRepository orderRepository;
 
 	@Test
-	@DisplayName("Happy path: stock reserved then payment authorized confirms the order")
+	@DisplayName("Given a placed order, when stock is reserved and payment is authorized, then the order is confirmed")
 	void confirmFlow() throws InterruptedException {
 		UUID orderId = placeOrder();
 
@@ -66,7 +66,7 @@ class OrderSagaIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("No stock: stock-reservation failure rejects the order with no payment requested")
+	@DisplayName("Given a placed order, when stock reservation fails, then the order is rejected and no payment is requested")
 	void rejectFlow() throws InterruptedException {
 		UUID orderId = placeOrder();
 
@@ -79,7 +79,7 @@ class OrderSagaIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("Payment refused: the order is cancelled, stock is released (compensation) and the StockReleased ack is a no-op")
+	@DisplayName("Given a stock-reserved order, when payment is refused, then the order is cancelled, stock is released (compensation) and the StockReleased ack is a no-op")
 	void cancelAndCompensateFlow() throws InterruptedException {
 		UUID orderId = placeOrder();
 
@@ -99,7 +99,7 @@ class OrderSagaIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("Idempotency: a redelivered PaymentAuthorized confirms the order only once")
+	@DisplayName("Given a stock-reserved order, when PaymentAuthorized is redelivered, then the order is confirmed only once")
 	void redeliveryIsIdempotent() throws InterruptedException {
 		UUID orderId = placeOrder();
 

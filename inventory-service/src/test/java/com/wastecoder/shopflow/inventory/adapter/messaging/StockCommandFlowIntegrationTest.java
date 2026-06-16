@@ -7,6 +7,7 @@ import com.wastecoder.shopflow.inventory.application.port.out.StockReservationRe
 import com.wastecoder.shopflow.inventory.domain.model.ReservationStatus;
 import com.wastecoder.shopflow.inventory.domain.model.StockItem;
 import com.wastecoder.shopflow.inventory.domain.model.StockReservation;
+import com.wastecoder.shopflow.inventory.testsupport.mother.StockItemMother;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,7 +51,7 @@ class StockCommandFlowIntegrationTest {
 	void reserve_happyPath() throws InterruptedException {
 		UUID orderId = UUID.randomUUID();
 		UUID productId = UUID.randomUUID();
-		stockRepository.save(new StockItem(productId, 100, 0));
+		stockRepository.save(StockItemMother.aStockItemFor(productId, 100));
 
 		sendCommand(MessageType.RESERVE_STOCK, orderId, productId, 2);
 
@@ -68,7 +69,7 @@ class StockCommandFlowIntegrationTest {
 	void reserve_insufficient() throws InterruptedException {
 		UUID orderId = UUID.randomUUID();
 		UUID productId = UUID.randomUUID();
-		stockRepository.save(new StockItem(productId, 1, 0));
+		stockRepository.save(StockItemMother.aStockItemFor(productId, 1));
 
 		sendCommand(MessageType.RESERVE_STOCK, orderId, productId, 2);
 
@@ -84,7 +85,7 @@ class StockCommandFlowIntegrationTest {
 	void release_restoresStock() throws InterruptedException {
 		UUID orderId = UUID.randomUUID();
 		UUID productId = UUID.randomUUID();
-		stockRepository.save(new StockItem(productId, 100, 0));
+		stockRepository.save(StockItemMother.aStockItemFor(productId, 100));
 
 		sendCommand(MessageType.RESERVE_STOCK, orderId, productId, 2);
 		assertThat(await(MessageType.STOCK_RESERVED, orderId)).isNotNull();
