@@ -99,6 +99,9 @@ subprojects {
 		dependsOn(integrationTest, tasks.named("jacocoTestCoverageVerification"))
 	}
 
+	// Pitest is applied only by the 4 domain services (they declare the plugin + their own targetClasses).
+	// api-gateway and discovery-server have no application-layer logic / mutation targets — their config and
+	// RouteLocator beans are covered by JaCoCo via each module's contextLoads test, so they stay off pitest.
 	plugins.withId("info.solidsoft.pitest") {
 		configure<info.solidsoft.gradle.pitest.PitestPluginExtension> {
 			pitestVersion.set("1.25.4")
@@ -111,6 +114,16 @@ subprojects {
 			mutationThreshold.set(80)
 			coverageThreshold.set(80)
 			failWhenNoMutations.set(false)
+		}
+
+		// Order the mutation run after the integration tests so a single `check` flows
+		// unit -> integration -> mutation. This is ordering only (not a dependency).
+		tasks.named("pitest") {
+			mustRunAfter(integrationTest)
+		}
+		// Make the mutation gate part of `check` (CHALLENGE §12: check enforces JaCoCo AND Pitest).
+		tasks.named("check") {
+			dependsOn(tasks.named("pitest"))
 		}
 	}
 }
