@@ -14,6 +14,10 @@ Ideias para evoluir o ShopFlow **depois** do MVP+Notification. Mesmo formato do 
 
 ## 🧱 Fase 11 — Novos bounded contexts
 - [ ] `catalog-service`, `shipping-service`, `customer-service`
+- [ ] `order-service`: snapshot dos atributos do produto na linha do pedido (`productName`,
+      `sku`, `currency`) lidos do `catalog-service` na compra — congela o registro histórico
+      (imune a renomear/reajustar/excluir no catálogo) e remove o `unitPrice`/nome vindos do
+      cliente; fecha o *trust gap* da "Decisão de preço" (`PROGRESS.md`, Fase 1)
 - [ ] Saga mais longa (inclui envio) com `RefundPayment` como compensação
 - **Critério:** saga multi-etapas com compensações encadeadas.
 
