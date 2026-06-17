@@ -9,6 +9,7 @@ dependencies {
 	implementation("org.springframework.cloud:spring-cloud-starter-gateway-server-webflux")
 	implementation("org.springframework.cloud:spring-cloud-starter-loadbalancer")
 	implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client")
+	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
 	testImplementation("io.projectreactor:reactor-test")

@@ -8,11 +8,12 @@ import com.wastecoder.shopflow.payment.domain.model.Payment;
 import com.wastecoder.shopflow.payment.domain.model.PaymentStatus;
 import com.wastecoder.shopflow.payment.testsupport.mother.PaymentCommandMother;
 import com.wastecoder.shopflow.payment.testsupport.mother.PaymentMother;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -37,8 +38,14 @@ class RefundPaymentUseCaseImplTest {
 	@Mock
 	private PaymentEventPublisher publisher;
 
-	@InjectMocks
+	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
 	private RefundPaymentUseCaseImpl useCase;
+
+	@BeforeEach
+	void setUp() {
+		useCase = new RefundPaymentUseCaseImpl(paymentRepository, paymentGateway, publisher, meterRegistry);
+	}
 
 	@Test
 	@DisplayName("Given an AUTHORIZED payment, when RefundPayment, then it is refunded at the PSP, marked REFUNDED and PaymentRefunded is published once")
@@ -53,6 +60,8 @@ class RefundPaymentUseCaseImplTest {
 		verify(paymentRepository).save(saved.capture());
 		assertThat(saved.getValue().status()).isEqualTo(PaymentStatus.REFUNDED);
 		verify(publisher).paymentRefunded(PaymentCommandMother.ORDER_ID);
+
+		assertThat(meterRegistry.get("shopflow.payments.outcome").tag("outcome", "refunded").counter().count()).isEqualTo(1.0);
 	}
 
 	@Test
@@ -66,6 +75,8 @@ class RefundPaymentUseCaseImplTest {
 		verifyNoInteractions(paymentGateway);
 		verify(paymentRepository, never()).save(any());
 		verify(publisher).paymentRefunded(PaymentCommandMother.ORDER_ID);
+
+		assertThat(meterRegistry.find("shopflow.payments.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -77,6 +88,8 @@ class RefundPaymentUseCaseImplTest {
 
 		verifyNoInteractions(paymentGateway, publisher);
 		verify(paymentRepository, never()).save(any());
+
+		assertThat(meterRegistry.find("shopflow.payments.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -89,5 +102,7 @@ class RefundPaymentUseCaseImplTest {
 
 		verifyNoInteractions(paymentGateway, publisher);
 		verify(paymentRepository, never()).save(any());
+
+		assertThat(meterRegistry.find("shopflow.payments.outcome").counter()).isNull();
 	}
 }

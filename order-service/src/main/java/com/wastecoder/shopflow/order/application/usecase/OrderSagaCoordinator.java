@@ -7,6 +7,7 @@ import com.wastecoder.shopflow.order.application.port.out.OrderEventPublisher;
 import com.wastecoder.shopflow.order.application.port.out.OrderRepository;
 import com.wastecoder.shopflow.order.domain.exception.InvalidOrderStateException;
 import com.wastecoder.shopflow.order.domain.model.Order;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,12 +38,14 @@ public class OrderSagaCoordinator implements HandleStockReplyUseCase, HandlePaym
 	private final OrderRepository repository;
 	private final OrderCommandPublisher commandPublisher;
 	private final OrderEventPublisher eventPublisher;
+	private final MeterRegistry meterRegistry;
 
 	public OrderSagaCoordinator(OrderRepository repository, OrderCommandPublisher commandPublisher,
-			OrderEventPublisher eventPublisher) {
+			OrderEventPublisher eventPublisher, MeterRegistry meterRegistry) {
 		this.repository = repository;
 		this.commandPublisher = commandPublisher;
 		this.eventPublisher = eventPublisher;
+		this.meterRegistry = meterRegistry;
 	}
 
 	@Override
@@ -60,6 +63,7 @@ public class OrderSagaCoordinator implements HandleStockReplyUseCase, HandlePaym
 			Order rejected = order.reject();
 			repository.save(rejected);
 			eventPublisher.orderRejected(rejected);
+			meterRegistry.counter("shopflow.saga.outcome", "outcome", "rejected").increment();
 		});
 	}
 
@@ -69,6 +73,7 @@ public class OrderSagaCoordinator implements HandleStockReplyUseCase, HandlePaym
 			Order confirmed = order.markPaid().confirm();
 			repository.save(confirmed);
 			eventPublisher.orderConfirmed(confirmed);
+			meterRegistry.counter("shopflow.saga.outcome", "outcome", "confirmed").increment();
 		});
 	}
 
@@ -79,6 +84,7 @@ public class OrderSagaCoordinator implements HandleStockReplyUseCase, HandlePaym
 			repository.save(cancelled);
 			commandPublisher.releaseStock(cancelled);
 			eventPublisher.orderCancelled(cancelled);
+			meterRegistry.counter("shopflow.saga.outcome", "outcome", "cancelled").increment();
 		});
 	}
 

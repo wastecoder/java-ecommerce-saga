@@ -9,11 +9,12 @@ import com.wastecoder.shopflow.inventory.domain.model.StockReservation;
 import com.wastecoder.shopflow.inventory.testsupport.mother.StockCommandMother;
 import com.wastecoder.shopflow.inventory.testsupport.mother.StockItemMother;
 import com.wastecoder.shopflow.inventory.testsupport.mother.StockReservationMother;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -40,8 +41,14 @@ class ReleaseStockUseCaseImplTest {
 	@Mock
 	private InventoryEventPublisher publisher;
 
-	@InjectMocks
+	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
 	private ReleaseStockUseCaseImpl useCase;
+
+	@BeforeEach
+	void setUp() {
+		useCase = new ReleaseStockUseCaseImpl(stockRepository, reservationRepository, publisher, meterRegistry);
+	}
 
 	@Test
 	@DisplayName("Given a RESERVED reservation, when ReleaseStock, then stock is restored, the reservation is marked RELEASED and StockReleased is published once")
@@ -67,6 +74,8 @@ class ReleaseStockUseCaseImplTest {
 		verify(publisher).stockReleased(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReserved(any());
 		verify(publisher, never()).stockReservationFailed(any());
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "released").counter().count()).isEqualTo(1.0);
 	}
 
 	@Test
@@ -88,6 +97,8 @@ class ReleaseStockUseCaseImplTest {
 		verify(stockRepository, times(2)).save(any());
 		verify(reservationRepository, times(2)).save(any());
 		verify(publisher).stockReleased(StockCommandMother.ORDER_ID);
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "released").counter().count()).isEqualTo(1.0);
 	}
 
 	@Test
@@ -101,5 +112,7 @@ class ReleaseStockUseCaseImplTest {
 		verify(stockRepository, never()).save(any());
 		verify(reservationRepository, never()).save(any());
 		verify(publisher).stockReleased(StockCommandMother.ORDER_ID);
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "released").counter().count()).isEqualTo(1.0);
 	}
 }

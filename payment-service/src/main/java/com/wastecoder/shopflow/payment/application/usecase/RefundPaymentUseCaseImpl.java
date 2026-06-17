@@ -7,6 +7,7 @@ import com.wastecoder.shopflow.payment.application.port.out.PaymentGateway;
 import com.wastecoder.shopflow.payment.application.port.out.PaymentRepository;
 import com.wastecoder.shopflow.payment.application.viewmodel.PaymentCommand;
 import com.wastecoder.shopflow.payment.domain.model.Payment;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -32,12 +33,14 @@ public class RefundPaymentUseCaseImpl implements RefundPaymentUseCase {
 	private final PaymentRepository paymentRepository;
 	private final PaymentGateway paymentGateway;
 	private final PaymentEventPublisher eventPublisher;
+	private final MeterRegistry meterRegistry;
 
 	public RefundPaymentUseCaseImpl(PaymentRepository paymentRepository, PaymentGateway paymentGateway,
-			PaymentEventPublisher eventPublisher) {
+			PaymentEventPublisher eventPublisher, MeterRegistry meterRegistry) {
 		this.paymentRepository = paymentRepository;
 		this.paymentGateway = paymentGateway;
 		this.eventPublisher = eventPublisher;
+		this.meterRegistry = meterRegistry;
 	}
 
 	@Override
@@ -63,6 +66,7 @@ public class RefundPaymentUseCaseImpl implements RefundPaymentUseCase {
 				paymentRepository.save(payment.refund());
 				log.info("Payment refunded for order {} (ref {})", orderId, decision.providerRef());
 				eventPublisher.paymentRefunded(orderId);
+				meterRegistry.counter("shopflow.payments.outcome", "outcome", "refunded").increment();
 			}
 			case FAILED -> log.warn("RefundPayment for a failed payment of order {}; nothing to refund", orderId);
 		}

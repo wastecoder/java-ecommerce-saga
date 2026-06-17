@@ -1,0 +1,15 @@
+# Grafana dashboard provisioning: load every dashboard JSON mounted under /var/lib/grafana/dashboards
+# into a "ShopFlow" folder on startup.
+apiVersion: 1
+
+providers:
+  - name: ShopFlow
+    orgId: 1
+    folder: ShopFlow
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

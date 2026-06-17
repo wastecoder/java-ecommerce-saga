@@ -20,6 +20,7 @@ dependencies {
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	developmentOnly("org.springframework.boot:spring-boot-docker-compose")
 	runtimeOnly("org.postgresql:postgresql")
+	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 	annotationProcessor("org.projectlombok:lombok")
 	annotationProcessor("org.projectlombok:lombok-mapstruct-binding:${property("lombokMapstructBindingVersion")}")
 	annotationProcessor("org.mapstruct:mapstruct-processor:${property("mapstructVersion")}")

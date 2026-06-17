@@ -9,6 +9,7 @@ import com.wastecoder.shopflow.inventory.domain.exception.StockItemNotFoundExcep
 import com.wastecoder.shopflow.inventory.domain.model.ReservationStatus;
 import com.wastecoder.shopflow.inventory.domain.model.StockItem;
 import com.wastecoder.shopflow.inventory.domain.model.StockReservation;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -31,12 +32,15 @@ public class ReleaseStockUseCaseImpl implements ReleaseStockUseCase {
 	private final StockRepository stockRepository;
 	private final StockReservationRepository reservationRepository;
 	private final InventoryEventPublisher eventPublisher;
+	private final MeterRegistry meterRegistry;
 
 	public ReleaseStockUseCaseImpl(StockRepository stockRepository,
-			StockReservationRepository reservationRepository, InventoryEventPublisher eventPublisher) {
+			StockReservationRepository reservationRepository, InventoryEventPublisher eventPublisher,
+			MeterRegistry meterRegistry) {
 		this.stockRepository = stockRepository;
 		this.reservationRepository = reservationRepository;
 		this.eventPublisher = eventPublisher;
+		this.meterRegistry = meterRegistry;
 	}
 
 	@Override
@@ -54,5 +58,6 @@ public class ReleaseStockUseCaseImpl implements ReleaseStockUseCase {
 		}
 		log.info("Released {} reservation(s) for order {}", reserved.size(), orderId);
 		eventPublisher.stockReleased(orderId);
+		meterRegistry.counter("shopflow.reservations.outcome", "outcome", "released").increment();
 	}
 }

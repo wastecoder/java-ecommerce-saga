@@ -9,11 +9,12 @@ import com.wastecoder.shopflow.inventory.domain.model.StockReservation;
 import com.wastecoder.shopflow.inventory.testsupport.mother.StockCommandMother;
 import com.wastecoder.shopflow.inventory.testsupport.mother.StockItemMother;
 import com.wastecoder.shopflow.inventory.testsupport.mother.StockReservationMother;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -39,8 +40,14 @@ class ReserveStockUseCaseImplTest {
 	@Mock
 	private InventoryEventPublisher publisher;
 
-	@InjectMocks
+	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
 	private ReserveStockUseCaseImpl useCase;
+
+	@BeforeEach
+	void setUp() {
+		useCase = new ReserveStockUseCaseImpl(stockRepository, reservationRepository, publisher, meterRegistry);
+	}
 
 	@Test
 	@DisplayName("Given enough stock and no prior reservations, when ReserveStock, then stock is decremented, a RESERVED reservation is saved and StockReserved is published once")
@@ -65,6 +72,9 @@ class ReserveStockUseCaseImplTest {
 		verify(publisher).stockReserved(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReservationFailed(any());
 		verify(publisher, never()).stockReleased(any());
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "reserved").counter().count()).isEqualTo(1.0);
+		assertThat(meterRegistry.find("shopflow.reservations.outcome").tag("outcome", "failed").counter()).isNull();
 	}
 
 	@Test
@@ -81,6 +91,8 @@ class ReserveStockUseCaseImplTest {
 		verify(reservationRepository, times(2)).save(any());
 		verify(publisher).stockReserved(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReservationFailed(any());
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "reserved").counter().count()).isEqualTo(1.0);
 	}
 
 	@Test
@@ -96,6 +108,8 @@ class ReserveStockUseCaseImplTest {
 		assertThat(savedStock.getValue().available()).isZero();
 		verify(publisher).stockReserved(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReservationFailed(any());
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "reserved").counter().count()).isEqualTo(1.0);
 	}
 
 	@Test
@@ -112,6 +126,9 @@ class ReserveStockUseCaseImplTest {
 		assertThat(savedReservation.getValue().status()).isEqualTo(ReservationStatus.FAILED);
 		verify(publisher).stockReservationFailed(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReserved(any());
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "failed").counter().count()).isEqualTo(1.0);
+		assertThat(meterRegistry.find("shopflow.reservations.outcome").tag("outcome", "reserved").counter()).isNull();
 	}
 
 	@Test
@@ -125,6 +142,9 @@ class ReserveStockUseCaseImplTest {
 		verify(reservationRepository).save(any());
 		verify(publisher).stockReservationFailed(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReserved(any());
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "failed").counter().count()).isEqualTo(1.0);
+		assertThat(meterRegistry.find("shopflow.reservations.outcome").tag("outcome", "reserved").counter()).isNull();
 	}
 
 	@Test
@@ -141,6 +161,9 @@ class ReserveStockUseCaseImplTest {
 		verify(reservationRepository, times(2)).save(any());
 		verify(publisher).stockReservationFailed(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReserved(any());
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "failed").counter().count()).isEqualTo(1.0);
+		assertThat(meterRegistry.find("shopflow.reservations.outcome").tag("outcome", "reserved").counter()).isNull();
 	}
 
 	@Test
@@ -156,6 +179,8 @@ class ReserveStockUseCaseImplTest {
 		verify(reservationRepository, never()).save(any());
 		verify(publisher).stockReserved(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReservationFailed(any());
+
+		assertThat(meterRegistry.find("shopflow.reservations.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -170,6 +195,8 @@ class ReserveStockUseCaseImplTest {
 		verify(reservationRepository, never()).save(any());
 		verify(publisher).stockReservationFailed(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReserved(any());
+
+		assertThat(meterRegistry.find("shopflow.reservations.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -186,6 +213,8 @@ class ReserveStockUseCaseImplTest {
 		verify(reservationRepository).save(any());
 		verify(publisher).stockReserved(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReservationFailed(any());
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "reserved").counter().count()).isEqualTo(1.0);
 	}
 
 	@Test
@@ -197,5 +226,7 @@ class ReserveStockUseCaseImplTest {
 		verify(reservationRepository, never()).save(any());
 		verify(publisher).stockReserved(StockCommandMother.ORDER_ID);
 		verify(publisher, never()).stockReservationFailed(any());
+
+		assertThat(meterRegistry.get("shopflow.reservations.outcome").tag("outcome", "reserved").counter().count()).isEqualTo(1.0);
 	}
 }

@@ -8,11 +8,12 @@ import com.wastecoder.shopflow.payment.domain.model.Payment;
 import com.wastecoder.shopflow.payment.domain.model.PaymentStatus;
 import com.wastecoder.shopflow.payment.testsupport.mother.PaymentCommandMother;
 import com.wastecoder.shopflow.payment.testsupport.mother.PaymentMother;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -37,8 +38,14 @@ class AuthorizePaymentUseCaseImplTest {
 	@Mock
 	private PaymentEventPublisher publisher;
 
-	@InjectMocks
+	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
 	private AuthorizePaymentUseCaseImpl useCase;
+
+	@BeforeEach
+	void setUp() {
+		useCase = new AuthorizePaymentUseCaseImpl(paymentRepository, paymentGateway, publisher, meterRegistry);
+	}
 
 	@Test
 	@DisplayName("Given no prior payment and the PSP approves, when ProcessPayment, then an AUTHORIZED payment is saved and PaymentAuthorized is published once")
@@ -58,6 +65,9 @@ class AuthorizePaymentUseCaseImplTest {
 		verify(publisher).paymentAuthorized(PaymentCommandMother.ORDER_ID);
 		verify(publisher, never()).paymentFailed(any());
 		verify(publisher, never()).paymentRefunded(any());
+
+		assertThat(meterRegistry.get("shopflow.payments.outcome").tag("outcome", "authorized").counter().count()).isEqualTo(1.0);
+		assertThat(meterRegistry.find("shopflow.payments.outcome").tag("outcome", "failed").counter()).isNull();
 	}
 
 	@Test
@@ -75,6 +85,9 @@ class AuthorizePaymentUseCaseImplTest {
 
 		verify(publisher).paymentFailed(PaymentCommandMother.ORDER_ID);
 		verify(publisher, never()).paymentAuthorized(any());
+
+		assertThat(meterRegistry.get("shopflow.payments.outcome").tag("outcome", "failed").counter().count()).isEqualTo(1.0);
+		assertThat(meterRegistry.find("shopflow.payments.outcome").tag("outcome", "authorized").counter()).isNull();
 	}
 
 	@Test
@@ -89,6 +102,8 @@ class AuthorizePaymentUseCaseImplTest {
 		verify(paymentRepository, never()).save(any());
 		verify(publisher).paymentAuthorized(PaymentCommandMother.ORDER_ID);
 		verify(publisher, never()).paymentFailed(any());
+
+		assertThat(meterRegistry.find("shopflow.payments.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -103,6 +118,8 @@ class AuthorizePaymentUseCaseImplTest {
 		verify(paymentRepository, never()).save(any());
 		verify(publisher).paymentFailed(PaymentCommandMother.ORDER_ID);
 		verify(publisher, never()).paymentAuthorized(any());
+
+		assertThat(meterRegistry.find("shopflow.payments.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -115,5 +132,7 @@ class AuthorizePaymentUseCaseImplTest {
 
 		verifyNoInteractions(paymentGateway, publisher);
 		verify(paymentRepository, never()).save(any());
+
+		assertThat(meterRegistry.find("shopflow.payments.outcome").counter()).isNull();
 	}
 }

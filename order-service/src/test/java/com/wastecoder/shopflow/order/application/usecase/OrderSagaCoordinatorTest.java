@@ -6,11 +6,12 @@ import com.wastecoder.shopflow.order.application.port.out.OrderRepository;
 import com.wastecoder.shopflow.order.domain.model.Order;
 import com.wastecoder.shopflow.order.domain.model.OrderStatus;
 import com.wastecoder.shopflow.order.testsupport.mother.OrderMother;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -40,8 +41,14 @@ class OrderSagaCoordinatorTest {
 	@Mock
 	private OrderEventPublisher eventPublisher;
 
-	@InjectMocks
+	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
 	private OrderSagaCoordinator coordinator;
+
+	@BeforeEach
+	void setUp() {
+		coordinator = new OrderSagaCoordinator(repository, commandPublisher, eventPublisher, meterRegistry);
+	}
 
 	private ArgumentCaptor<Order> savedOrder() {
 		return ArgumentCaptor.forClass(Order.class);
@@ -63,6 +70,8 @@ class OrderSagaCoordinatorTest {
 		verify(commandPublisher, never()).reserveStock(any());
 		verify(commandPublisher, never()).releaseStock(any());
 		verifyNoInteractions(eventPublisher);
+
+		assertThat(meterRegistry.find("shopflow.saga.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -79,6 +88,10 @@ class OrderSagaCoordinatorTest {
 		verify(eventPublisher, never()).orderRejected(any());
 		verify(eventPublisher, never()).orderCancelled(any());
 		verifyNoInteractions(commandPublisher);
+
+		assertThat(meterRegistry.get("shopflow.saga.outcome").tag("outcome", "confirmed").counter().count()).isEqualTo(1.0);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").tag("outcome", "rejected").counter()).isNull();
+		assertThat(meterRegistry.find("shopflow.saga.outcome").tag("outcome", "cancelled").counter()).isNull();
 	}
 
 	@Test
@@ -95,6 +108,10 @@ class OrderSagaCoordinatorTest {
 		verify(eventPublisher, never()).orderCancelled(any());
 		verify(eventPublisher, never()).orderConfirmed(any());
 		verifyNoInteractions(commandPublisher);
+
+		assertThat(meterRegistry.get("shopflow.saga.outcome").tag("outcome", "rejected").counter().count()).isEqualTo(1.0);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").tag("outcome", "confirmed").counter()).isNull();
+		assertThat(meterRegistry.find("shopflow.saga.outcome").tag("outcome", "cancelled").counter()).isNull();
 	}
 
 	@Test
@@ -113,6 +130,10 @@ class OrderSagaCoordinatorTest {
 		verify(commandPublisher, never()).processPayment(any());
 		verify(eventPublisher, never()).orderConfirmed(any());
 		verify(eventPublisher, never()).orderRejected(any());
+
+		assertThat(meterRegistry.get("shopflow.saga.outcome").tag("outcome", "cancelled").counter().count()).isEqualTo(1.0);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").tag("outcome", "confirmed").counter()).isNull();
+		assertThat(meterRegistry.find("shopflow.saga.outcome").tag("outcome", "rejected").counter()).isNull();
 	}
 
 	@Test
@@ -121,6 +142,7 @@ class OrderSagaCoordinatorTest {
 		coordinator.onStockReleased(ORDER_ID);
 
 		verifyNoInteractions(repository, commandPublisher, eventPublisher);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").counter()).isNull();
 	}
 
 	// --- Guards: duplicate / out-of-order / terminal-state replies are ignored ----
@@ -134,6 +156,7 @@ class OrderSagaCoordinatorTest {
 
 		verify(repository, never()).save(any());
 		verifyNoInteractions(commandPublisher, eventPublisher);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -145,6 +168,7 @@ class OrderSagaCoordinatorTest {
 
 		verify(repository, never()).save(any());
 		verifyNoInteractions(commandPublisher, eventPublisher);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -156,6 +180,7 @@ class OrderSagaCoordinatorTest {
 
 		verify(repository, never()).save(any());
 		verifyNoInteractions(commandPublisher, eventPublisher);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -167,6 +192,7 @@ class OrderSagaCoordinatorTest {
 
 		verify(repository, never()).save(any());
 		verifyNoInteractions(commandPublisher, eventPublisher);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -178,6 +204,7 @@ class OrderSagaCoordinatorTest {
 
 		verify(repository, never()).save(any());
 		verifyNoInteractions(commandPublisher, eventPublisher);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").counter()).isNull();
 	}
 
 	// --- Unknown order: replies for a missing order are dropped, not thrown ----
@@ -191,6 +218,7 @@ class OrderSagaCoordinatorTest {
 
 		verify(repository, never()).save(any());
 		verifyNoInteractions(commandPublisher, eventPublisher);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").counter()).isNull();
 	}
 
 	@Test
@@ -202,6 +230,7 @@ class OrderSagaCoordinatorTest {
 
 		verify(repository, never()).save(any());
 		verifyNoInteractions(commandPublisher, eventPublisher);
+		assertThat(meterRegistry.find("shopflow.saga.outcome").counter()).isNull();
 	}
 
 	// --- Partial failure: a publish error propagates (Kafka redelivers) ----
@@ -216,5 +245,6 @@ class OrderSagaCoordinatorTest {
 				.isInstanceOf(RuntimeException.class);
 
 		verify(repository).save(any());
+		assertThat(meterRegistry.find("shopflow.saga.outcome").counter()).isNull();
 	}
 }

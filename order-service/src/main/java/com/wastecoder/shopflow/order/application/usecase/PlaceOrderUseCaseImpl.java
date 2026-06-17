@@ -7,6 +7,7 @@ import com.wastecoder.shopflow.order.application.port.out.OrderRepository;
 import com.wastecoder.shopflow.order.application.viewmodel.PlaceOrderCommand;
 import com.wastecoder.shopflow.order.domain.model.Order;
 import com.wastecoder.shopflow.order.domain.model.OrderItem;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
@@ -25,13 +26,15 @@ public class PlaceOrderUseCaseImpl implements PlaceOrderUseCase {
 	private final OrderEventPublisher eventPublisher;
 	private final OrderCommandPublisher commandPublisher;
 	private final Validator validator;
+	private final MeterRegistry meterRegistry;
 
 	public PlaceOrderUseCaseImpl(OrderRepository repository, OrderEventPublisher eventPublisher,
-			OrderCommandPublisher commandPublisher, Validator validator) {
+			OrderCommandPublisher commandPublisher, Validator validator, MeterRegistry meterRegistry) {
 		this.repository = repository;
 		this.eventPublisher = eventPublisher;
 		this.commandPublisher = commandPublisher;
 		this.validator = validator;
+		this.meterRegistry = meterRegistry;
 	}
 
 	@Override
@@ -46,6 +49,7 @@ public class PlaceOrderUseCaseImpl implements PlaceOrderUseCase {
 		// Start the saga: announce the order, then ask inventory to reserve stock.
 		eventPublisher.orderCreated(saved);
 		commandPublisher.reserveStock(saved);
+		meterRegistry.counter("shopflow.orders.placed").increment();
 		return saved;
 	}
 

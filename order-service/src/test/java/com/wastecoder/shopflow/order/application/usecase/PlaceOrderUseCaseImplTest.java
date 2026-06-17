@@ -6,14 +6,15 @@ import com.wastecoder.shopflow.order.application.port.out.OrderRepository;
 import com.wastecoder.shopflow.order.domain.model.Order;
 import com.wastecoder.shopflow.order.domain.model.OrderStatus;
 import com.wastecoder.shopflow.order.testsupport.mother.PlaceOrderCommandMother;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -43,8 +44,14 @@ class PlaceOrderUseCaseImplTest {
 	@Mock
 	private Validator validator;
 
-	@InjectMocks
+	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
 	private PlaceOrderUseCaseImpl useCase;
+
+	@BeforeEach
+	void setUp() {
+		useCase = new PlaceOrderUseCaseImpl(repository, eventPublisher, commandPublisher, validator, meterRegistry);
+	}
 
 	@Test
 	@DisplayName("Given a valid command, when placing an order, then it is saved as PENDING with generated ids and computed total")
@@ -72,6 +79,8 @@ class PlaceOrderUseCaseImplTest {
 
 		verify(eventPublisher).orderCreated(result);
 		verify(commandPublisher).reserveStock(result);
+
+		assertThat(meterRegistry.get("shopflow.orders.placed").counter().count()).isEqualTo(1.0);
 	}
 
 	@Test
@@ -88,5 +97,7 @@ class PlaceOrderUseCaseImplTest {
 		verify(repository, never()).save(any(Order.class));
 		verify(eventPublisher, never()).orderCreated(any());
 		verify(commandPublisher, never()).reserveStock(any());
+
+		assertThat(meterRegistry.find("shopflow.orders.placed").counter()).isNull();
 	}
 }

@@ -7,6 +7,7 @@ import com.wastecoder.shopflow.payment.application.port.out.PaymentGateway;
 import com.wastecoder.shopflow.payment.application.port.out.PaymentRepository;
 import com.wastecoder.shopflow.payment.application.viewmodel.PaymentCommand;
 import com.wastecoder.shopflow.payment.domain.model.Payment;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,12 +34,14 @@ public class AuthorizePaymentUseCaseImpl implements AuthorizePaymentUseCase {
 	private final PaymentRepository paymentRepository;
 	private final PaymentGateway paymentGateway;
 	private final PaymentEventPublisher eventPublisher;
+	private final MeterRegistry meterRegistry;
 
 	public AuthorizePaymentUseCaseImpl(PaymentRepository paymentRepository, PaymentGateway paymentGateway,
-			PaymentEventPublisher eventPublisher) {
+			PaymentEventPublisher eventPublisher, MeterRegistry meterRegistry) {
 		this.paymentRepository = paymentRepository;
 		this.paymentGateway = paymentGateway;
 		this.eventPublisher = eventPublisher;
+		this.meterRegistry = meterRegistry;
 	}
 
 	@Override
@@ -58,12 +61,14 @@ public class AuthorizePaymentUseCaseImpl implements AuthorizePaymentUseCase {
 					Payment.authorized(UUID.randomUUID(), orderId, command.amount(), decision.providerRef()));
 			log.info("Payment authorized for order {} (ref {})", orderId, decision.providerRef());
 			eventPublisher.paymentAuthorized(orderId);
+			meterRegistry.counter("shopflow.payments.outcome", "outcome", "authorized").increment();
 		} else {
 			paymentRepository.save(
 					Payment.failed(UUID.randomUUID(), orderId, command.amount(), decision.providerRef()));
 			log.info("Payment declined for order {} (ref {}, reason: {})", orderId, decision.providerRef(),
 					decision.declineReason());
 			eventPublisher.paymentFailed(orderId);
+			meterRegistry.counter("shopflow.payments.outcome", "outcome", "failed").increment();
 		}
 	}
 
