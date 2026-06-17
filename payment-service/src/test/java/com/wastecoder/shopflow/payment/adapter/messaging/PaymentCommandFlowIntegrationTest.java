@@ -50,8 +50,7 @@ class PaymentCommandFlowIntegrationTest {
 		sendProcess(orderId, new BigDecimal("100.00"));
 
 		assertThat(await(MessageType.PAYMENT_AUTHORIZED, orderId)).isNotNull();
-		Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
-		assertThat(payment.status()).isEqualTo(PaymentStatus.AUTHORIZED);
+		Payment payment = awaitPayment(orderId, PaymentStatus.AUTHORIZED);
 		assertThat(payment.amount()).isEqualByComparingTo("100.00");
 		assertThat(payment.providerRef()).startsWith("PSP-");
 	}
@@ -64,8 +63,7 @@ class PaymentCommandFlowIntegrationTest {
 		sendProcess(orderId, new BigDecimal("5000.00"));
 
 		assertThat(await(MessageType.PAYMENT_FAILED, orderId)).isNotNull();
-		Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
-		assertThat(payment.status()).isEqualTo(PaymentStatus.FAILED);
+		awaitPayment(orderId, PaymentStatus.FAILED);
 	}
 
 	@Test
@@ -75,12 +73,11 @@ class PaymentCommandFlowIntegrationTest {
 
 		sendProcess(orderId, new BigDecimal("100.00"));
 		assertThat(await(MessageType.PAYMENT_AUTHORIZED, orderId)).isNotNull();
+		awaitPayment(orderId, PaymentStatus.AUTHORIZED);
 
 		sendRefund(orderId);
 		assertThat(await(MessageType.PAYMENT_REFUNDED, orderId)).isNotNull();
-
-		Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
-		assertThat(payment.status()).isEqualTo(PaymentStatus.REFUNDED);
+		awaitPayment(orderId, PaymentStatus.REFUNDED);
 	}
 
 	private void sendProcess(UUID orderId, BigDecimal amount) {
@@ -105,6 +102,23 @@ class PaymentCommandFlowIntegrationTest {
 			}
 		}
 		throw new AssertionError("Did not receive " + type + " for order " + orderId + " within timeout");
+	}
+
+	/**
+	 * Polls the repository until the payment reaches {@code status}. The reply event is published inside the
+	 * use case's transaction but the Kafka send is not bound to the DB commit, so observing the event does not
+	 * guarantee the row is committed yet — poll the source of truth instead of reading once.
+	 */
+	private Payment awaitPayment(UUID orderId, PaymentStatus status) throws InterruptedException {
+		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+		while (System.nanoTime() < deadline) {
+			Payment payment = paymentRepository.findByOrderId(orderId).orElse(null);
+			if (payment != null && payment.status() == status) {
+				return payment;
+			}
+			TimeUnit.MILLISECONDS.sleep(100);
+		}
+		throw new AssertionError("Payment for order " + orderId + " did not reach " + status + " within timeout");
 	}
 
 	@TestConfiguration

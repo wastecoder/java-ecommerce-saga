@@ -56,6 +56,7 @@ class StockCommandFlowIntegrationTest {
 		sendCommand(MessageType.RESERVE_STOCK, orderId, productId, 2);
 
 		assertThat(await(MessageType.STOCK_RESERVED, orderId)).isNotNull();
+		awaitReservationStatus(orderId, ReservationStatus.RESERVED);
 		StockItem stock = stockRepository.findByProductId(productId).orElseThrow();
 		assertThat(stock.available()).isEqualTo(98);
 		assertThat(stock.reserved()).isEqualTo(2);
@@ -74,6 +75,7 @@ class StockCommandFlowIntegrationTest {
 		sendCommand(MessageType.RESERVE_STOCK, orderId, productId, 2);
 
 		assertThat(await(MessageType.STOCK_RESERVATION_FAILED, orderId)).isNotNull();
+		awaitReservationStatus(orderId, ReservationStatus.FAILED);
 		StockItem stock = stockRepository.findByProductId(productId).orElseThrow();
 		assertThat(stock.available()).isEqualTo(1);
 		assertThat(stock.reserved()).isZero();
@@ -89,9 +91,11 @@ class StockCommandFlowIntegrationTest {
 
 		sendCommand(MessageType.RESERVE_STOCK, orderId, productId, 2);
 		assertThat(await(MessageType.STOCK_RESERVED, orderId)).isNotNull();
+		awaitReservationStatus(orderId, ReservationStatus.RESERVED);
 
 		sendCommand(MessageType.RELEASE_STOCK, orderId, productId, 2);
 		assertThat(await(MessageType.STOCK_RELEASED, orderId)).isNotNull();
+		awaitReservationStatus(orderId, ReservationStatus.RELEASED);
 
 		StockItem stock = stockRepository.findByProductId(productId).orElseThrow();
 		assertThat(stock.available()).isEqualTo(100);
@@ -115,6 +119,22 @@ class StockCommandFlowIntegrationTest {
 			}
 		}
 		throw new AssertionError("Did not receive " + type + " for order " + orderId + " within timeout");
+	}
+
+	/**
+	 * Polls until a reservation for the order reaches {@code status}. The reply event is published inside the
+	 * use case's transaction but the Kafka send is not bound to the DB commit, so observing the event does not
+	 * guarantee the rows are committed yet — gate the subsequent reads on the committed source of truth.
+	 */
+	private void awaitReservationStatus(UUID orderId, ReservationStatus status) throws InterruptedException {
+		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+		while (System.nanoTime() < deadline) {
+			if (!reservationRepository.findByOrderIdAndStatus(orderId, status).isEmpty()) {
+				return;
+			}
+			TimeUnit.MILLISECONDS.sleep(100);
+		}
+		throw new AssertionError("Reservation for order " + orderId + " did not reach " + status + " within timeout");
 	}
 
 	@TestConfiguration

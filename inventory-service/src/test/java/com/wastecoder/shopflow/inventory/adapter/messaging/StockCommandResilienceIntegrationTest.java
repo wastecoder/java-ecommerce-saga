@@ -86,6 +86,7 @@ class StockCommandResilienceIntegrationTest {
 		assertThat(awaitEvent(MessageType.STOCK_RESERVED, orderId)).isNotNull();
 		// The redelivery is short-circuited by the dedup before the use case, so it does NOT republish.
 		assertNoMoreEvent(MessageType.STOCK_RESERVED, orderId);
+		awaitReservationStatus(orderId, ReservationStatus.RESERVED);
 		StockItem stock = stockRepository.findByProductId(productId).orElseThrow();
 		assertThat(stock.available()).isEqualTo(98);
 		assertThat(stock.reserved()).isEqualTo(2);
@@ -134,6 +135,21 @@ class StockCommandResilienceIntegrationTest {
 			}
 		}
 		throw new AssertionError("Did not receive " + type + " for order " + orderId + " within timeout");
+	}
+
+	/**
+	 * Polls until a reservation for the order reaches {@code status} — the reply event can be observed before
+	 * the use case's transaction commits, so gate the DB assertions on the committed source of truth.
+	 */
+	private void awaitReservationStatus(UUID orderId, ReservationStatus status) throws InterruptedException {
+		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+		while (System.nanoTime() < deadline) {
+			if (!reservationRepository.findByOrderIdAndStatus(orderId, status).isEmpty()) {
+				return;
+			}
+			TimeUnit.MILLISECONDS.sleep(100);
+		}
+		throw new AssertionError("Reservation for order " + orderId + " did not reach " + status + " within timeout");
 	}
 
 	private void assertNoMoreEvent(String type, UUID orderId) throws InterruptedException {

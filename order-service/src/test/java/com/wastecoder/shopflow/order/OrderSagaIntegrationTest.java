@@ -62,7 +62,7 @@ class OrderSagaIntegrationTest {
 		simulate(Topics.PAYMENT_EVENTS, MessageType.PAYMENT_AUTHORIZED, orderId);
 
 		assertThat(await(ORDER_EVENTS, MessageType.ORDER_CONFIRMED, orderId)).isNotNull();
-		assertThat(statusOf(orderId)).isEqualTo(OrderStatus.CONFIRMED);
+		awaitStatus(orderId, OrderStatus.CONFIRMED);
 	}
 
 	@Test
@@ -74,7 +74,7 @@ class OrderSagaIntegrationTest {
 		simulate(Topics.INVENTORY_EVENTS, MessageType.STOCK_RESERVATION_FAILED, orderId);
 
 		assertThat(await(ORDER_EVENTS, MessageType.ORDER_REJECTED, orderId)).isNotNull();
-		assertThat(statusOf(orderId)).isEqualTo(OrderStatus.REJECTED);
+		awaitStatus(orderId, OrderStatus.REJECTED);
 		assertNotReceived(PAYMENT_COMMANDS, MessageType.PROCESS_PAYMENT, orderId);
 	}
 
@@ -91,7 +91,7 @@ class OrderSagaIntegrationTest {
 
 		assertThat(await(INVENTORY_COMMANDS, MessageType.RELEASE_STOCK, orderId)).isNotNull();
 		assertThat(await(ORDER_EVENTS, MessageType.ORDER_CANCELLED, orderId)).isNotNull();
-		assertThat(statusOf(orderId)).isEqualTo(OrderStatus.CANCELLED);
+		awaitStatus(orderId, OrderStatus.CANCELLED);
 
 		// The compensation acknowledgement must not change the terminal order.
 		simulate(Topics.INVENTORY_EVENTS, MessageType.STOCK_RELEASED, orderId);
@@ -112,7 +112,7 @@ class OrderSagaIntegrationTest {
 
 		assertThat(await(ORDER_EVENTS, MessageType.ORDER_CONFIRMED, orderId)).isNotNull();
 		assertNotReceived(ORDER_EVENTS, MessageType.ORDER_CONFIRMED, orderId);
-		assertThat(statusOf(orderId)).isEqualTo(OrderStatus.CONFIRMED);
+		awaitStatus(orderId, OrderStatus.CONFIRMED);
 	}
 
 	private UUID placeOrder() {
@@ -126,6 +126,23 @@ class OrderSagaIntegrationTest {
 
 	private OrderStatus statusOf(UUID orderId) {
 		return orderRepository.findById(orderId).orElseThrow().status();
+	}
+
+	/**
+	 * Polls until the order reaches {@code status}. The order event is published inside the coordinator's
+	 * transaction but the Kafka send is not bound to the DB commit, so observing the event does not guarantee
+	 * the new status is committed yet — poll the source of truth instead of reading once.
+	 */
+	private void awaitStatus(UUID orderId, OrderStatus status) throws InterruptedException {
+		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+		while (System.nanoTime() < deadline) {
+			Order order = orderRepository.findById(orderId).orElse(null);
+			if (order != null && order.status() == status) {
+				return;
+			}
+			TimeUnit.MILLISECONDS.sleep(100);
+		}
+		throw new AssertionError("Order " + orderId + " did not reach " + status + " within timeout");
 	}
 
 	private EventEnvelope await(BlockingQueue<EventEnvelope> queue, String type, UUID orderId) throws InterruptedException {

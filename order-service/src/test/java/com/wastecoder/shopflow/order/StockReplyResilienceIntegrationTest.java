@@ -66,7 +66,7 @@ class StockReplyResilienceIntegrationTest {
 
 		assertThat(await(PAYMENT_COMMANDS, MessageType.PROCESS_PAYMENT, orderId.toString())).isNotNull();
 		assertNotReceived(PAYMENT_COMMANDS, MessageType.PROCESS_PAYMENT, orderId.toString());
-		assertThat(statusOf(orderId)).isEqualTo(OrderStatus.STOCK_RESERVED);
+		awaitStatus(orderId, OrderStatus.STOCK_RESERVED);
 		assertThat(processedMessages.existsByEventIdAndConsumer(eventId, Consumers.STOCK_REPLY)).isTrue();
 	}
 
@@ -90,8 +90,20 @@ class StockReplyResilienceIntegrationTest {
 		return placed.id();
 	}
 
-	private OrderStatus statusOf(UUID orderId) {
-		return orderRepository.findById(orderId).orElseThrow().status();
+	/**
+	 * Polls until the order reaches {@code status} — the order event can be observed before the coordinator's
+	 * transaction commits, so poll the source of truth instead of reading once.
+	 */
+	private void awaitStatus(UUID orderId, OrderStatus status) throws InterruptedException {
+		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+		while (System.nanoTime() < deadline) {
+			Order order = orderRepository.findById(orderId).orElse(null);
+			if (order != null && order.status() == status) {
+				return;
+			}
+			TimeUnit.MILLISECONDS.sleep(100);
+		}
+		throw new AssertionError("Order " + orderId + " did not reach " + status + " within timeout");
 	}
 
 	private EventEnvelope await(BlockingQueue<EventEnvelope> queue, String type, String orderId)
