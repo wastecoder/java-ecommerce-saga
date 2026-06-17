@@ -6,6 +6,7 @@ import com.wastecoder.shopflow.order.application.port.in.GetOrderUseCase;
 import com.wastecoder.shopflow.order.application.port.in.PlaceOrderUseCase;
 import com.wastecoder.shopflow.order.domain.model.Order;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -48,7 +49,9 @@ public class OrderController {
 			@ApiResponse(responseCode = "201", description = "Order created"),
 			@ApiResponse(responseCode = "400", description = "Invalid payload")
 	})
-	public ResponseEntity<OrderResponse> place(@Valid @RequestBody PlaceOrderRequest request) {
+	public ResponseEntity<OrderResponse> place(
+			@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Order to place.", required = true)
+			@Valid @RequestBody PlaceOrderRequest request) {
 		log.info("Placing order for customer={} items={}", request.customerId(), request.items().size());
 		Order order = placeOrderUseCase.execute(request.toCommand());
 
@@ -70,7 +73,9 @@ public class OrderController {
 			@ApiResponse(responseCode = "400", description = "Invalid id"),
 			@ApiResponse(responseCode = "404", description = "Order not found")
 	})
-	public ResponseEntity<OrderResponse> getById(@PathVariable UUID id) {
+	public ResponseEntity<OrderResponse> getById(
+			@Parameter(description = "Order identifier.", example = "9b2e7c10-3a4b-4c5d-8e6f-0a1b2c3d4e5f")
+			@PathVariable UUID id) {
 		log.info("Looking up order id={}", id);
 		Order order = getOrderUseCase.execute(id);
 		return ResponseEntity.ok(OrderResponse.from(order));

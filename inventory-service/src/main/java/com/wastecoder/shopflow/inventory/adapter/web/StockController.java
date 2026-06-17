@@ -4,6 +4,7 @@ import com.wastecoder.shopflow.inventory.adapter.web.dto.response.StockResponse;
 import com.wastecoder.shopflow.inventory.application.port.in.GetStockUseCase;
 import com.wastecoder.shopflow.inventory.application.port.in.ListStockUseCase;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -54,7 +55,9 @@ public class StockController {
 			@ApiResponse(responseCode = "400", description = "Invalid product id"),
 			@ApiResponse(responseCode = "404", description = "Stock not found")
 	})
-	public ResponseEntity<StockResponse> getByProductId(@PathVariable UUID productId) {
+	public ResponseEntity<StockResponse> getByProductId(
+			@Parameter(description = "Product identifier.", example = "7d2f0f9e-2c1a-4f5b-9c3d-1e2a3b4c5d6e")
+			@PathVariable UUID productId) {
 		log.info("Looking up stock for product={}", productId);
 		return ResponseEntity.ok(StockResponse.from(getStockUseCase.execute(productId)));
 	}

@@ -3,6 +3,7 @@ package com.wastecoder.shopflow.payment.adapter.web;
 import com.wastecoder.shopflow.payment.adapter.web.dto.response.PaymentResponse;
 import com.wastecoder.shopflow.payment.application.port.in.GetPaymentUseCase;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,7 +40,9 @@ public class PaymentController {
 			@ApiResponse(responseCode = "400", description = "Invalid order id"),
 			@ApiResponse(responseCode = "404", description = "Payment not found")
 	})
-	public ResponseEntity<PaymentResponse> getByOrderId(@PathVariable UUID orderId) {
+	public ResponseEntity<PaymentResponse> getByOrderId(
+			@Parameter(description = "Order identifier.", example = "9b2e7c10-3a4b-4c5d-8e6f-0a1b2c3d4e5f")
+			@PathVariable UUID orderId) {
 		log.info("Looking up payment for order={}", orderId);
 		return ResponseEntity.ok(PaymentResponse.from(getPaymentUseCase.execute(orderId)));
 	}

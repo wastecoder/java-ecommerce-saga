@@ -4,6 +4,7 @@ import com.wastecoder.shopflow.notification.adapter.web.dto.response.Notificatio
 import com.wastecoder.shopflow.notification.application.port.in.GetNotificationsByOrderUseCase;
 import com.wastecoder.shopflow.notification.application.port.in.ListNotificationsUseCase;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -51,7 +52,9 @@ public class NotificationController {
 			@ApiResponse(responseCode = "200", description = "Notifications listed"),
 			@ApiResponse(responseCode = "400", description = "Invalid order id")
 	})
-	public ResponseEntity<List<NotificationResponse>> getByOrderId(@PathVariable UUID orderId) {
+	public ResponseEntity<List<NotificationResponse>> getByOrderId(
+			@Parameter(description = "Order identifier.", example = "9b2e7c10-3a4b-4c5d-8e6f-0a1b2c3d4e5f")
+			@PathVariable UUID orderId) {
 		log.info("Listing notifications for order={}", orderId);
 		return ResponseEntity.ok(
 				getNotificationsByOrderUseCase.execute(orderId).stream().map(NotificationResponse::from).toList());
