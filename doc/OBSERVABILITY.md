@@ -1,11 +1,15 @@
-# 📈 Observabilidade — ShopFlow (Prometheus + Grafana)
+# 📈 Observabilidade — ShopFlow (Prometheus + Grafana + Zipkin)
 
 Guia prático de como **operar** a stack de observabilidade do ShopFlow: subir a infra, rodar os
-serviços, gerar dados e navegar pelo Prometheus e pelo Grafana até ver os painéis populados.
+serviços, gerar dados e navegar pelo Prometheus, pelo Grafana e pelo Zipkin.
 
-A coleta usa **Spring Boot Actuator + Micrometer**: cada serviço expõe `/actuator/prometheus`, o
-**Prometheus** (container) raspa esses endpoints a cada 10s e o **Grafana** (container) lê do Prometheus
+A coleta de **métricas** usa **Spring Boot Actuator + Micrometer**: cada serviço expõe `/actuator/prometheus`,
+o **Prometheus** (container) raspa esses endpoints a cada 10s e o **Grafana** (container) lê do Prometheus
 e desenha os dashboards.
+
+Para **tracing distribuído**, os serviços usam **Micrometer Tracing (Brave)** e exportam os spans para o
+**Zipkin** (container). O contexto de trace é propagado pelo HTTP **e pelas mensagens Kafka**, então uma
+saga inteira (`order → inventory → payment → notification`) aparece como **um único trace** ponta-a-ponta.
 
 > **Modelo de execução:** a infra (PostgreSQL, Kafka, Prometheus, Grafana) roda em **containers**, mas
 > os 6 serviços Spring rodam no **host** via `bootRun`. Por isso o Prometheus os raspa por
@@ -24,7 +28,8 @@ Na raiz do repositório:
 docker compose up -d
 ```
 
-Isso sobe: `postgres`, `kafka`, `kafka-ui`, **`prometheus` (:9090)** e **`grafana` (:3000)**.
+Isso sobe: `postgres`, `kafka`, `kafka-ui`, **`prometheus` (:9090)**, **`grafana` (:3000)** e
+**`zipkin` (:9411)**.
 
 As portas e credenciais saem do `.env` (com defaults caso a variável não exista):
 
@@ -34,6 +39,7 @@ As portas e credenciais saem do `.env` (com defaults caso a variável não exist
 | `GRAFANA_PORT` | `3000` | Porta do Grafana no host |
 | `GRAFANA_ADMIN_USER` | `admin` | Usuário admin do Grafana |
 | `GRAFANA_ADMIN_PASSWORD` | `admin` | Senha admin do Grafana |
+| `ZIPKIN_PORT` | `9411` | Porta do Zipkin (UI + ingestão de spans) no host |
 
 Conferir que tudo subiu: `docker compose ps`.
 Parar a infra: `docker compose down` (acrescente `-v` para **apagar os volumes** — cuidado, zera dados
@@ -191,6 +197,40 @@ A janela de tempo já vem em `now-30m` e o refresh em `10s` (ajustáveis no cant
 
 > **Dica:** os painéis de negócio ficam em "No data" até existir tráfego — dispare alguns pedidos da
 > seção 3 (*Gerar dados*) para vê-los reagir.
+
+---
+
+## 🔗 6. Tracing distribuído (Zipkin) — `http://localhost:9411`
+
+O tracing mostra **uma requisição inteira como um único trace**, com um span por etapa, ligados pelo mesmo
+`traceId`. No ShopFlow o contexto de trace é propagado tanto pelo **HTTP** quanto pelas **mensagens Kafka**
+(via Micrometer Observation + Brave), então a saga `order → inventory → payment → notification` aparece
+encadeada de ponta a ponta — **incluindo os saltos assíncronos pelo broker**.
+
+1. Garanta a infra de pé (`docker compose up -d` sobe também o `zipkin`) e suba os serviços (seção 2).
+2. Dispare uma saga (seção 3 — *Gerar dados*); o corpo **CONFIRMED** dá o caminho feliz completo.
+3. Abra **`http://localhost:9411`** → **Run Query** (ou *Find a trace*) → abra o trace mais recente.
+
+No caminho feliz você vê, num só trace:
+
+- o span de **entrada HTTP** (`POST /orders` no `order-service`; passando pelo `api-gateway`, o span do
+  gateway é a raiz);
+- os spans de **publish/consume do Kafka** encadeados: `order` → `inventory.commands` → `inventory` →
+  `inventory.events` → `order` → `payment.commands` → `payment` → `payment.events` → `order` →
+  `order.events` → `notification`;
+- todos compartilhando o **mesmo `traceId`** — é a latência ponta-a-ponta da saga (que não cabia num
+  `Timer` em memória; ver Fase 5, item 1).
+
+Notas:
+
+- **Como funciona a propagação pelo Kafka:** `spring.kafka.template.observation-enabled` faz o *producer*
+  injetar o header W3C `traceparent` no record; `spring.kafka.listener.observation-enabled` faz o *consumer*
+  continuar o trace a partir desse header. Tudo por configuração — sem `KafkaTemplate`/factory customizados.
+- **Amostragem** em `1.0` (`management.tracing.sampling.probability`) — toda saga é traçada (ok p/
+  dev/portfólio; em produção se reduz). Export: `management.tracing.export.zipkin.endpoint`.
+- Os serviços rodam no **host** e o Zipkin é container com `:9411` publicado → eles empurram os spans para
+  `localhost:9411` (fluxo host→container; aqui não há `host.docker.internal`).
+- O armazenamento do Zipkin é **em memória**: reiniciar o container zera os traces (igual ao log do Kafka).
 
 ---
 
