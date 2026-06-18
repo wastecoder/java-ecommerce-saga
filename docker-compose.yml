@@ -102,6 +102,27 @@ services:
     # Kafka log. The Spring services run on the host (bootRun) and push spans to localhost:9411.
     networks: [shopflow]
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    container_name: shopflow-keycloak
+    # dev mode: in-memory H2 + relaxed hostname/HTTP. --import-realm seeds the realm from the mounted
+    # export on every start, so the JSON below is the source of truth (manual admin-console edits are
+    # lost on restart — same ephemeral philosophy as the Kafka log and the Zipkin store).
+    command: start-dev --import-realm
+    environment:
+      # Renamed in Keycloak 26 (were KEYCLOAK_ADMIN / KEYCLOAK_ADMIN_PASSWORD): the bootstrap admin
+      # of the *master* realm, used only to log into the admin console at :8088.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    ports:
+      # host 8088 -> container 8080 (mirrors kafka-ui's 8085:8080). The token issuer is derived from
+      # the request host, so everything reaching Keycloak via localhost:8088 sees a consistent issuer
+      # http://localhost:8088/realms/shopflow (the Spring services run on the host via bootRun).
+      - "${KEYCLOAK_PORT:-8088}:8080"
+    volumes:
+      - ./infra/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    networks: [shopflow]
+
 volumes:
   postgres-data:
   grafana-data:
