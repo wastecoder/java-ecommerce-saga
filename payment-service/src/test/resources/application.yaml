@@ -29,5 +29,15 @@ eureka:
   client:
     enabled: false
 
+# Tracing stays active but spans are never shipped to Zipkin during tests — there is no Zipkin
+# backend in CI / the test JVM.
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      zipkin:
+        enabled: false
+
 problem-details:
   base-uri: https://wastecoder.com/problems

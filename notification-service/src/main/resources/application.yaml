@@ -33,6 +33,10 @@ spring:
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.wastecoder.shopflow.notification.adapter.messaging.EventEnvelope
         spring.json.trusted.packages: com.wastecoder.shopflow.notification.adapter.messaging
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
 
 server:
   port: 8084
@@ -53,6 +57,12 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      zipkin:
+        endpoint: http://localhost:9411/api/v2/spans
 
 problem-details:
   base-uri: https://wastecoder.com/problems

@@ -22,10 +22,26 @@ spring:
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.wastecoder.shopflow.order.adapter.messaging.EventEnvelope
         spring.json.trusted.packages: com.wastecoder.shopflow.order.adapter.messaging
+    # Mirrors production: enabling observation makes the producer inject the trace context into the
+    # Kafka record headers (asserted by KafkaTracePropagationIntegrationTest).
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
 
 eureka:
   client:
     enabled: false
+
+# Tracing stays active (so the Kafka traceparent propagation test is deterministic), but spans are
+# never shipped to Zipkin during tests — there is no Zipkin backend in CI / the test JVM.
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      zipkin:
+        enabled: false
 
 problem-details:
   base-uri: https://wastecoder.com/problems

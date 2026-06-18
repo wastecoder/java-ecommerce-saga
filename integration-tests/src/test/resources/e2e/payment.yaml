@@ -36,6 +36,15 @@ eureka:
   client:
     enabled: false
 
+# Tracing/observation stays active but spans are never shipped to Zipkin during the E2E test.
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      zipkin:
+        enabled: false
+
 problem-details:
   base-uri: https://wastecoder.com/problems
 

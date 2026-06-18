@@ -34,5 +34,15 @@ eureka:
   client:
     enabled: false
 
+# Tracing/observation stays active (trace context still propagates across the saga over Kafka), but
+# spans are never shipped to Zipkin during the E2E test — there is no Zipkin backend in CI.
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      zipkin:
+        enabled: false
+
 problem-details:
   base-uri: https://wastecoder.com/problems

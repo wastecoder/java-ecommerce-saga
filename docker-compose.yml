@@ -93,6 +93,15 @@ services:
       - grafana-data:/var/lib/grafana
     networks: [shopflow]
 
+  zipkin:
+    image: openzipkin/zipkin:3.6.0
+    container_name: shopflow-zipkin
+    ports:
+      - "${ZIPKIN_PORT:-9411}:9411"   # UI + span ingest (POST /api/v2/spans) for host bootRun services
+    # In-memory storage (default STORAGE_TYPE=mem) is fine for local dev — traces are ephemeral, like the
+    # Kafka log. The Spring services run on the host (bootRun) and push spans to localhost:9411.
+    networks: [shopflow]
+
 volumes:
   postgres-data:
   grafana-data:
