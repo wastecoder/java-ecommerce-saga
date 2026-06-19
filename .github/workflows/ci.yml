@@ -1,0 +1,44 @@
+name: CI
+
+# Phase 7 item 1: build + unit tests + integration tests (Testcontainers) on every PR to main.
+# Image build/push to GHCR is phase 7 item 2 and lives in a separate workflow.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: this workflow only reads the repo. Writing packages (GHCR) is item 2.
+permissions:
+  contents: read
+
+# Cancel an in-progress run when a new commit is pushed to the same branch/PR.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build + test + integrationTest (Testcontainers)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Caches Gradle dependencies and the wrapper distribution between runs.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # `build` runs the full local gate: compile + unit (`test`) + `integrationTest` + JaCoCo + Pitest
+      # + assemble. The integration tests use Testcontainers, which talks to the Docker daemon that the
+      # ubuntu-latest runner already provides (Kafka, PostgreSQL and the end-to-end Keycloak come up as
+      # throwaway containers — no `services:` block needed).
+      - name: Build, test and integration test
+        run: ./gradlew build --no-daemon --stacktrace
