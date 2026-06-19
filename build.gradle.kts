@@ -99,6 +99,16 @@ subprojects {
 		dependsOn(integrationTest, tasks.named("jacocoTestCoverageVerification"))
 	}
 
+	// The deployable services produce an executable bootJar with a predictable name so each service's
+	// Dockerfile can `COPY build/libs/app.jar` unambiguously (the Spring Boot plugin also emits a
+	// `-plain.jar`). The plain `jar` stays enabled on purpose: the integration-tests module consumes the
+	// services via project(":…"), which resolves their plain artifact.
+	plugins.withId("org.springframework.boot") {
+		tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+			archiveFileName.set("app.jar")
+		}
+	}
+
 	// Pitest is applied only by the 4 domain services (they declare the plugin + their own targetClasses).
 	// api-gateway and discovery-server have no application-layer logic / mutation targets — their config and
 	// RouteLocator beans are covered by JaCoCo via each module's contextLoads test, so they stay off pitest.
