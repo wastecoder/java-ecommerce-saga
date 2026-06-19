@@ -1,0 +1,73 @@
+name: Publish images
+
+# Phase 7 item 2: build one image per deployable service and push to GHCR on merge to main
+# (a push to main only happens after a PR that already went green through ci.yml).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Read the code + write packages to GHCR. GITHUB_TOKEN gets these scopes for ghcr.io.
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - discovery-server
+          - order-service
+          - inventory-service
+          - payment-service
+          - notification-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Produces <service>/build/libs/app.jar (the bootJar archiveFileName is fixed in the root build).
+      - name: Build bootJar
+        run: ./gradlew :${{ matrix.service }}:bootJar --no-daemon --stacktrace
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Lowercases the owner and derives tags: `latest` plus the short commit SHA.
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/shopflow-${{ matrix.service }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
