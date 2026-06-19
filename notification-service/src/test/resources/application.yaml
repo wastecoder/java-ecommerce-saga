@@ -24,6 +24,13 @@ spring:
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.wastecoder.shopflow.notification.adapter.messaging.EventEnvelope
         spring.json.trusted.packages: com.wastecoder.shopflow.notification.adapter.messaging
+  # Lazy JWT decoder (fetched on first validation, not at startup) so @SpringBootTest contexts load
+  # without a running Keycloak; these tests never validate a token, so it is never called.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8088/realms/shopflow/protocol/openid-connect/certs
 
 eureka:
   client:

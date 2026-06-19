@@ -8,16 +8,16 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 class GatewayRoutesConfig {
 
-	// Dummy route: proves end-to-end Eureka resolution. GET /dummy/actuator/health is
-	// load-balanced through Eureka to this gateway's own instance (registered as "api-gateway").
-	// In Fase 1 this becomes real routes to order-service / inventory-service.
+	// Real routes to the domain services, resolved through Eureka (lb://<spring.application.name>). The path
+	// maps 1:1 to each service's controller mapping, so no prefix stripping is needed. Authentication is
+	// enforced by SecurityConfig before routing; per-role authorization happens in the services.
 	@Bean
 	RouteLocator gatewayRoutes(RouteLocatorBuilder builder) {
 		return builder.routes()
-				.route("dummy-route", r -> r
-						.path("/dummy/**")
-						.filters(f -> f.stripPrefix(1))
-						.uri("lb://api-gateway"))
+				.route("order-service", r -> r.path("/orders/**").uri("lb://order-service"))
+				.route("inventory-service", r -> r.path("/stock/**").uri("lb://inventory-service"))
+				.route("payment-service", r -> r.path("/payments/**").uri("lb://payment-service"))
+				.route("notification-service", r -> r.path("/notifications/**").uri("lb://notification-service"))
 				.build();
 	}
 

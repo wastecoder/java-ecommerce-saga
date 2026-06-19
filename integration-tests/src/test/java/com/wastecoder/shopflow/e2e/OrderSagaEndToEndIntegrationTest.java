@@ -11,6 +11,7 @@ import com.wastecoder.shopflow.payment.PaymentServiceApplication;
 import com.wastecoder.shopflow.payment.application.port.out.PaymentRepository;
 import com.wastecoder.shopflow.payment.domain.model.Payment;
 import com.wastecoder.shopflow.payment.domain.model.PaymentStatus;
+import dasniko.testcontainers.keycloak.KeycloakContainer;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -23,6 +24,8 @@ import org.springframework.boot.web.server.context.WebServerApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -70,6 +73,7 @@ class OrderSagaEndToEndIntegrationTest {
 
 	private static KafkaContainer kafka;
 	private static PostgreSQLContainer postgres;
+	private static KeycloakContainer keycloak;
 
 	private static ConfigurableApplicationContext orderContext;
 	private static ConfigurableApplicationContext inventoryContext;
@@ -78,13 +82,19 @@ class OrderSagaEndToEndIntegrationTest {
 
 	private static String orderBaseUrl;
 	private static RestClient rest;
+	// A genuine CUSTOMER access token, minted by the real Keycloak, sent on every call to order-service so
+	// its resource server accepts the request (POST /orders requires the CUSTOMER role).
+	private static String accessToken;
 
 	@BeforeAll
 	static void startInfrastructureAndServices() throws Exception {
 		kafka = new KafkaContainer(DockerImageName.parse("apache/kafka-native:latest"));
 		postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:latest"));
+		keycloak = new KeycloakContainer("quay.io/keycloak/keycloak:26.6.3")
+				.withRealmImportFile("/keycloak/realm-export.json");
 		kafka.start();
 		postgres.start();
+		keycloak.start();
 
 		createDatabases("orderdb", "inventorydb", "paymentdb", "notificationdb");
 
@@ -95,10 +105,16 @@ class OrderSagaEndToEndIntegrationTest {
 		// new partitions in time, so keyed messages land on partitions nobody is consuming and the saga stalls.
 		createTopics(bootstrap);
 
-		inventoryContext = boot(InventoryServiceApplication.class, "inventory", "inventorydb", bootstrap, null);
-		paymentContext = boot(PaymentServiceApplication.class, "payment", "paymentdb", bootstrap, null);
-		notificationContext = boot(NotificationServiceApplication.class, "notification", "notificationdb", bootstrap, null);
-		orderContext = boot(OrderServiceApplication.class, "order", "orderdb", bootstrap, "0");
+		// order-service is the only resource server here (the others run web-application-type: none). It is
+		// pointed at the real Keycloak issuer and validates the genuine token fetched below; Keycloak must be
+		// up before order-service boots because issuer-uri discovery happens eagerly at startup.
+		String issuerUri = keycloak.getAuthServerUrl() + "/realms/shopflow";
+		accessToken = fetchAccessToken(issuerUri);
+
+		inventoryContext = boot(InventoryServiceApplication.class, "inventory", "inventorydb", bootstrap, null, null);
+		paymentContext = boot(PaymentServiceApplication.class, "payment", "paymentdb", bootstrap, null, null);
+		notificationContext = boot(NotificationServiceApplication.class, "notification", "notificationdb", bootstrap, null, null);
+		orderContext = boot(OrderServiceApplication.class, "order", "orderdb", bootstrap, "0", issuerUri);
 
 		int port = ((WebServerApplicationContext) orderContext).getWebServer().getPort();
 		orderBaseUrl = "http://localhost:" + port;
@@ -116,6 +132,9 @@ class OrderSagaEndToEndIntegrationTest {
 		}
 		if (kafka != null) {
 			kafka.stop();
+		}
+		if (keycloak != null) {
+			keycloak.stop();
 		}
 	}
 
@@ -199,6 +218,7 @@ class OrderSagaEndToEndIntegrationTest {
 		Map<String, Object> response = rest.post()
 				.uri(orderBaseUrl + "/orders")
 				.contentType(MediaType.APPLICATION_JSON)
+				.header("Authorization", "Bearer " + accessToken)
 				.body(body)
 				.retrieve()
 				.body(JSON_MAP);
@@ -209,6 +229,7 @@ class OrderSagaEndToEndIntegrationTest {
 	private String orderStatus(UUID orderId) {
 		Map<String, Object> response = rest.get()
 				.uri(orderBaseUrl + "/orders/" + orderId)
+				.header("Authorization", "Bearer " + accessToken)
 				.retrieve()
 				.body(JSON_MAP);
 		return (String) response.get("status");
@@ -232,7 +253,7 @@ class OrderSagaEndToEndIntegrationTest {
 	}
 
 	private static ConfigurableApplicationContext boot(Class<?> applicationClass, String service, String database,
-			String bootstrapServers, String serverPort) {
+			String bootstrapServers, String serverPort, String issuerUri) {
 		String jdbcUrl = "jdbc:postgresql://" + postgres.getHost() + ":" + postgres.getMappedPort(5432) + "/" + database;
 		List<String> args = new ArrayList<>(List.of(
 				"--spring.config.location=classpath:/e2e/" + service + ".yaml",
@@ -243,7 +264,28 @@ class OrderSagaEndToEndIntegrationTest {
 		if (serverPort != null) {
 			args.add("--server.port=" + serverPort);
 		}
+		if (issuerUri != null) {
+			args.add("--spring.security.oauth2.resourceserver.jwt.issuer-uri=" + issuerUri);
+		}
 		return new SpringApplicationBuilder(applicationClass).run(args.toArray(new String[0]));
+	}
+
+	private static String fetchAccessToken(String issuerUri) {
+		MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+		form.add("client_id", "shopflow-gateway");
+		form.add("client_secret", "shopflow-gateway-secret");
+		form.add("grant_type", "password");
+		form.add("username", "customer");
+		form.add("password", "customer");
+
+		Map<String, Object> response = RestClient.create().post()
+				.uri(issuerUri + "/protocol/openid-connect/token")
+				.contentType(MediaType.APPLICATION_FORM_URLENCODED)
+				.body(form)
+				.retrieve()
+				.body(JSON_MAP);
+
+		return (String) response.get("access_token");
 	}
 
 	private static void createTopics(String bootstrapServers) throws Exception {

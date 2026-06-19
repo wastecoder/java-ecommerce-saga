@@ -1,3 +1,13 @@
+spring:
+  # Lazy JWT decoder (fetched on first validation, not at startup) so the @SpringBootTest contexts load
+  # without a running Keycloak; the security tests only exercise the 401 / permitAll paths, which never
+  # decode a token.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8088/realms/shopflow/protocol/openid-connect/certs
+
 eureka:
   client:
     enabled: false

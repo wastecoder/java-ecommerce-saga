@@ -1,5 +1,6 @@
 package com.wastecoder.shopflow.order.adapter.web;
 
+import com.wastecoder.shopflow.order.adapter.config.SecurityConfig;
 import com.wastecoder.shopflow.order.application.port.in.GetOrderUseCase;
 import com.wastecoder.shopflow.order.application.port.in.PlaceOrderUseCase;
 import com.wastecoder.shopflow.order.domain.exception.OrderNotFoundException;
@@ -11,9 +12,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.UUID;
 
@@ -21,6 +26,7 @@ import java.util.Collections;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -28,7 +34,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(OrderController.class)
+@Import(SecurityConfig.class)
 class OrderControllerTest {
+
+	private static final RequestPostProcessor CUSTOMER = jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"));
+	private static final RequestPostProcessor ADMIN = jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -39,13 +49,18 @@ class OrderControllerTest {
 	@MockitoBean
 	private GetOrderUseCase getOrderUseCase;
 
+	// Required so the oauth2ResourceServer().jwt() filter wires without reaching a real Keycloak; the jwt()
+	// post-processor authenticates requests directly, so this decoder is never actually invoked.
+	@MockitoBean
+	private JwtDecoder jwtDecoder;
+
 	@Test
-	@DisplayName("Given a valid payload, when POST /orders, then it returns 201 with Location and the PENDING order")
+	@DisplayName("Given a CUSTOMER token and a valid payload, when POST /orders, then it returns 201 with Location and the PENDING order")
 	void place_returnsCreated() throws Exception {
 		Order order = OrderMother.aPendingOrder();
 		when(placeOrderUseCase.execute(any())).thenReturn(order);
 
-		mockMvc.perform(post("/orders")
+		mockMvc.perform(post("/orders").with(CUSTOMER)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(PlaceOrderRequestPayloadMother.aValidPayload()))
 				.andExpect(status().isCreated())
@@ -57,32 +72,57 @@ class OrderControllerTest {
 	}
 
 	@Test
-	@DisplayName("Given an existing order, when GET /orders/{id}, then it returns 200 with the order")
+	@DisplayName("Given no token, when POST /orders, then it returns 401 Unauthorized")
+	void place_returnsUnauthorizedWithoutToken() throws Exception {
+		mockMvc.perform(post("/orders")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(PlaceOrderRequestPayloadMother.aValidPayload()))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	@DisplayName("Given a token without the CUSTOMER role, when POST /orders, then it returns 403 Forbidden")
+	void place_returnsForbiddenWithoutCustomerRole() throws Exception {
+		mockMvc.perform(post("/orders").with(ADMIN)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(PlaceOrderRequestPayloadMother.aValidPayload()))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	@DisplayName("Given an authenticated token and an existing order, when GET /orders/{id}, then it returns 200 with the order")
 	void getById_returnsOk() throws Exception {
 		when(getOrderUseCase.execute(OrderMother.ORDER_ID)).thenReturn(OrderMother.aPendingOrder());
 
-		mockMvc.perform(get("/orders/{id}", OrderMother.ORDER_ID))
+		mockMvc.perform(get("/orders/{id}", OrderMother.ORDER_ID).with(jwt()))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.id").value(OrderMother.ORDER_ID.toString()))
 				.andExpect(jsonPath("$.customerId").value(OrderMother.CUSTOMER_ID.toString()));
 	}
 
 	@Test
-	@DisplayName("Given no order with the id, when GET /orders/{id}, then it returns 404 problem details")
+	@DisplayName("Given no token, when GET /orders/{id}, then it returns 401 Unauthorized")
+	void getById_returnsUnauthorizedWithoutToken() throws Exception {
+		mockMvc.perform(get("/orders/{id}", OrderMother.ORDER_ID))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	@DisplayName("Given an authenticated token but no order with the id, when GET /orders/{id}, then it returns 404 problem details")
 	void getById_returnsNotFound() throws Exception {
 		UUID missingId = UUID.fromString("99999999-9999-9999-9999-999999999999");
 		when(getOrderUseCase.execute(missingId)).thenThrow(new OrderNotFoundException(missingId));
 
-		mockMvc.perform(get("/orders/{id}", missingId))
+		mockMvc.perform(get("/orders/{id}", missingId).with(jwt()))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.title").value("Order not found"))
 				.andExpect(jsonPath("$.orderId").value(missingId.toString()));
 	}
 
 	@Test
-	@DisplayName("Given a payload with no items, when POST /orders, then it returns 400 problem details")
+	@DisplayName("Given a CUSTOMER token and a payload with no items, when POST /orders, then it returns 400 problem details")
 	void place_returnsBadRequestWhenItemsEmpty() throws Exception {
-		mockMvc.perform(post("/orders")
+		mockMvc.perform(post("/orders").with(CUSTOMER)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(PlaceOrderRequestPayloadMother.aPayloadWithoutItems()))
 				.andExpect(status().isBadRequest())
@@ -90,20 +130,20 @@ class OrderControllerTest {
 	}
 
 	@Test
-	@DisplayName("Given a non-UUID id, when GET /orders/{id}, then it returns 400 problem details")
+	@DisplayName("Given an authenticated token and a non-UUID id, when GET /orders/{id}, then it returns 400 problem details")
 	void getById_returnsBadRequestForInvalidId() throws Exception {
-		mockMvc.perform(get("/orders/{id}", "not-a-uuid"))
+		mockMvc.perform(get("/orders/{id}", "not-a-uuid").with(jwt()))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.title").value("Invalid request parameter"));
 	}
 
 	@Test
-	@DisplayName("Given a use case that fails Bean Validation, when POST /orders, then it returns 400 problem details")
+	@DisplayName("Given a CUSTOMER token and a use case that fails Bean Validation, when POST /orders, then it returns 400 problem details")
 	void place_returnsBadRequestOnConstraintViolation() throws Exception {
 		when(placeOrderUseCase.execute(any()))
 				.thenThrow(new ConstraintViolationException("invalid", Collections.emptySet()));
 
-		mockMvc.perform(post("/orders")
+		mockMvc.perform(post("/orders").with(CUSTOMER)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(PlaceOrderRequestPayloadMother.aValidPayload()))
 				.andExpect(status().isBadRequest())
@@ -111,11 +151,11 @@ class OrderControllerTest {
 	}
 
 	@Test
-	@DisplayName("Given an unexpected failure, when POST /orders, then it returns 500 problem details")
+	@DisplayName("Given a CUSTOMER token and an unexpected failure, when POST /orders, then it returns 500 problem details")
 	void place_returnsInternalServerErrorOnUnexpectedFailure() throws Exception {
 		when(placeOrderUseCase.execute(any())).thenThrow(new RuntimeException("boom"));
 
-		mockMvc.perform(post("/orders")
+		mockMvc.perform(post("/orders").with(CUSTOMER)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(PlaceOrderRequestPayloadMother.aValidPayload()))
 				.andExpect(status().isInternalServerError())

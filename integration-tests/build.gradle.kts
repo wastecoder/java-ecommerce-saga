@@ -33,6 +33,9 @@ dependencies {
 	testImplementation("org.testcontainers:testcontainers-junit-jupiter")
 	testImplementation("org.testcontainers:testcontainers-kafka")
 	testImplementation("org.testcontainers:testcontainers-postgresql")
+	// Real Keycloak for the end-to-end test: imports the realm and issues a JWT so the order-service
+	// resource server validates a genuine token (supports Keycloak 26.x via withRealmImportFile).
+	testImplementation("com.github.dasniko:testcontainers-keycloak:3.8.0")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	// Needed by the test to CREATE the per-service databases in the shared Postgres container, and at
 	// runtime by each booted context's datasource.
@@ -43,4 +46,12 @@ dependencies {
 // to measure — disable it so `check` is not blocked by an empty bundle.
 tasks.named("jacocoTestCoverageVerification") {
 	enabled = false
+}
+
+// Put the single source-of-truth realm export (used by docker-compose) on the test classpath as
+// keycloak/realm-export.json, so the end-to-end test's KeycloakContainer can import it.
+tasks.processTestResources {
+	from(rootProject.file("infra/keycloak")) {
+		into("keycloak")
+	}
 }
