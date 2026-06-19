@@ -155,7 +155,12 @@ Roadmap em fases para construir o MVP. A sequência **fecha a saga cedo** e vai 
 - **Critério:** ~~`POST /orders` exige JWT válido.~~ ✅ **Fase 6 concluída.**
 
 ## 🚀 Fase 7 — CI/CD
-- [ ] GitHub Actions: build + `test` + `integrationTest` (Testcontainers)
+- [x] ~~GitHub Actions: build + `test` + `integrationTest` (Testcontainers)~~
+  - **Workflow `.github/workflows/ci.yml`** (caminho previsto no CHALLENGE §9): job único em **`ubuntu-latest`** que roda **`./gradlew build`** — compila + unit (`test`) + **`integrationTest`** (Testcontainers) + gates **JaCoCo/Pitest** + `assemble`. Como o `ubuntu-latest` já traz Docker, o Testcontainers sobe Kafka/PostgreSQL **e o Keycloak do E2E** como containers descartáveis (sem bloco `services:`). Passos: `actions/checkout@v4` → `actions/setup-java@v4` (**temurin 21**, casa com o toolchain do build) → `gradle/actions/setup-gradle@v4` (cache de deps/wrapper) → `./gradlew build --no-daemon --stacktrace`.
+  - **Triggers**: `pull_request` → `main` (o critério da fase) + `push` → `main` (protege o histórico pós-merge) + `workflow_dispatch` (manual). **`permissions: contents: read`** (mínimo; escrita no GHCR é o item 2) e **`concurrency`** com `cancel-in-progress` (cancela runs supersedidos do mesmo PR).
+  - **Fix necessário p/ runner Linux:** o `gradlew` estava com modo `100644` no git; marcado **`100755`** (`git update-index --chmod=+x`) para o `./gradlew` executar no runner.
+  - **Verificado (local):** YAML válido (parser) e o comando exato do CI, **`./gradlew build`, verde** (`BUILD SUCCESSFUL`, todos os módulos — unit + integração Testcontainers + JaCoCo + Pitest + boot jars). O **"pipeline verde no PR"** só é observável **após publicar no GitHub** (o repo é local-only): ao abrir um PR de uma branch → `main`, o Actions roda o workflow do branch do PR.
+  - **Fora deste item:** build/push de imagens p/ o **GHCR** no merge p/ `main` (**item 2**); README + badge de status (**Fase 8**); branch protection / required checks (config no GitHub).
 - [ ] Build e push das imagens para o **GHCR** no merge para `main`
 - **Critério:** pipeline verde no PR; imagens publicadas no merge.
 
