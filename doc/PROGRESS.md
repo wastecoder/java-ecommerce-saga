@@ -170,6 +170,10 @@ Roadmap em fases para construir o MVP. A sequência **fecha a saga cedo** e vai 
 - **Critério:** ~~pipeline verde no PR; imagens publicadas no merge.~~ ✅ **Fase 7 concluída** (o pipeline e o publish rodam no GitHub após publicar o repo).
 
 ## 🎁 Fase 8 — Acabamento de portfólio
-- [ ] README com diagramas (mermaid), badges e GIF/asciinema do fluxo
+- [x] ~~README com diagramas (mermaid), badges e GIF/asciinema do fluxo~~
+  - **`README.md`** na raiz (PT, vitrine "hub"): herói + **badges** (CI/GHCR ao vivo de `wastecoder/shopflow` + estáticos da stack), **dois diagramas mermaid** (componentes da arquitetura + **sequência da SAGA** com happy path, compensação e rejeição), visão geral, tabela da stack, **quickstart** fiel ao modelo real (infra em `docker compose` + serviços via `bootRun`), **walkthrough executável** do caminho feliz (token no Keycloak → `POST /orders` pela borda → `GET` de pedido/pagamento/notificações com saída esperada) + os desfechos de cancelamento/rejeição, e seções de observabilidade/segurança/testes — **linkando** os docs profundos em `doc/` (sem duplicar).
+  - **GIF (decisão "combo"):** o walkthrough textual cobre o fluxo agora; a gravação do GIF fica como **script determinístico** `doc/demo/flow.tape` (vhs) + guia `doc/demo/README.md` + placeholder comentado no README. **Gerar o `doc/demo/flow.gif` é um passo manual** (precisa da stack de pé + vhs/ffmpeg na máquina) — por isso não está embutido.
+  - **Verificado:** verificação adversarial (agentes lendo o código) confirmou portas, versões, endpoints/rotas/roles, tópicos/SAGA/estados, executabilidade do walkthrough (DTOs/seed/credenciais), links válidos e sintaxe mermaid — **zero divergências**. Sem `LICENSE` por ora (decisão do usuário).
+  - **Fora deste item:** gerar/gravar o GIF de fato; coleção Postman/HTTPie (**item 2**); arquivo `LICENSE`.
 - [ ] Coleção Postman/HTTPie + instruções de uso
 - **Critério:** repositório "vendável" e fácil de rodar por terceiros.
