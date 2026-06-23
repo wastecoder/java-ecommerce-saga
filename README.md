@@ -176,7 +176,8 @@ obtenha um token de `customer`, faça `POST /orders` (total < 1000) e, em ~1s, c
 `GET /orders/{id}` (→ `CONFIRMED`), `GET /payments/{id}` e `GET /notifications/{id}`.
 
 O **walkthrough completo** com `curl` (token, payload, respostas esperadas, estoque semeado e os desfechos
-de cancelamento/rejeição) está em [`doc/API.md`](doc/API.md#4-walkthrough-do-fluxo).
+de cancelamento/rejeição) está em [`doc/API.md`](doc/API.md#4-walkthrough-do-fluxo). Prefere uma **coleção
+importável**? Há uma coleção **Postman** + script **HTTPie** prontos em [`postman/`](postman/README.md).
 
 ---
 
@@ -245,6 +246,7 @@ Object Mother e estilo de teste em [`doc/TESTS.md`](doc/TESTS.md).
 | [`doc/README.md`](doc/README.md) | Índice da documentação e por onde começar |
 | [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) | Hexagonal, fluxo da SAGA, contratos Kafka, modelo de domínio |
 | [`doc/API.md`](doc/API.md) | Endpoints, erros (RFC 7807) e o walkthrough do fluxo |
+| [`postman/`](postman/README.md) | Coleção Postman + script HTTPie (importável) com instruções de uso |
 | [`doc/DEVELOPMENT.md`](doc/DEVELOPMENT.md) | Como rodar, comandos, URLs, profiles, Docker e CI/CD |
 | [`doc/TESTS.md`](doc/TESTS.md) | Estratégia de testes, Object Mother e gates de qualidade |
 | [`doc/OBSERVABILITY.md`](doc/OBSERVABILITY.md) | Métricas, dashboards e tracing |
@@ -256,6 +258,6 @@ Object Mother e estilo de teste em [`doc/TESTS.md`](doc/TESTS.md).
 
 ## 🗺 Roadmap
 
-MVP construído por fases — **Fases 0 a 7 concluídas** (fundação, REST+JPA, Kafka+SAGA, Payment+Notification,
-qualidade, observabilidade, segurança, CI/CD). A **Fase 8** (acabamento de portfólio) está em andamento.
-Acompanhe em [`doc/PROGRESS.md`](doc/PROGRESS.md).
+MVP construído por fases — **Fases 0 a 8 concluídas** (fundação, REST+JPA, Kafka+SAGA, Payment+Notification,
+qualidade, observabilidade, segurança, CI/CD e acabamento de portfólio): **MVP completo**. A visão pós-MVP
+está em [`doc/FUTURE-PROGRESS.md`](doc/FUTURE-PROGRESS.md); acompanhe o roadmap em [`doc/PROGRESS.md`](doc/PROGRESS.md).

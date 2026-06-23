@@ -1,0 +1,441 @@
+{
+  "info": {
+    "name": "ShopFlow API",
+    "description": "Coleção para exercitar a API do ShopFlow ponta a ponta pela borda (api-gateway :8080) com JWT do Keycloak.\n\nFluxo: rode `Auth > Obter token (customer)` (salva {{access_token}}); as demais requests já autenticam. Para `Stock` (role ADMIN), rode `Auth > Obter token (manager)` (salva {{admin_token}}).\n\nA SAGA é assíncrona — após o POST /orders, aguarde ~1s e consulte o pedido. Detalhes em ../doc/API.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{access_token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Tokens JWT via password grant no Keycloak (realm shopflow, client shopflow-gateway).",
+      "item": [
+        {
+          "name": "Obter token (customer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set(\"access_token\", json.access_token);",
+                  "pm.test(\"200 + access_token presente\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(json.access_token).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "client_id", "value": "{{client_id}}", "type": "text" },
+                { "key": "client_secret", "value": "{{client_secret}}", "type": "text" },
+                { "key": "grant_type", "value": "password", "type": "text" },
+                { "key": "username", "value": "{{customer_user}}", "type": "text" },
+                { "key": "password", "value": "{{customer_password}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{realm}}/protocol/openid-connect/token",
+              "host": ["{{keycloak_url}}"],
+              "path": ["realms", "{{realm}}", "protocol", "openid-connect", "token"]
+            },
+            "description": "Obtém um JWT do usuário CUSTOMER e salva em {{access_token}}. Rode esta request primeiro."
+          },
+          "response": []
+        },
+        {
+          "name": "Obter token (manager)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set(\"admin_token\", json.access_token);",
+                  "pm.test(\"200 + admin_token presente\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(json.access_token).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "client_id", "value": "{{client_id}}", "type": "text" },
+                { "key": "client_secret", "value": "{{client_secret}}", "type": "text" },
+                { "key": "grant_type", "value": "password", "type": "text" },
+                { "key": "username", "value": "{{manager_user}}", "type": "text" },
+                { "key": "password", "value": "{{manager_password}}", "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloak_url}}/realms/{{realm}}/protocol/openid-connect/token",
+              "host": ["{{keycloak_url}}"],
+              "path": ["realms", "{{realm}}", "protocol", "openid-connect", "token"]
+            },
+            "description": "Obtém um JWT do usuário ADMIN (manager) e salva em {{admin_token}}. Necessário para as requests de Stock."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "description": "Criação e consulta de pedidos. POST /orders exige role CUSTOMER; dispara a SAGA.",
+      "item": [
+        {
+          "name": "Criar pedido — caminho feliz (CONFIRMED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set(\"order_id\", json.id);",
+                  "pm.test(\"201 + PENDING\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(json.status).to.eql(\"PENDING\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"items\": [\n    { \"productId\": \"{{product_id}}\", \"quantity\": 2, \"unitPrice\": 400.00 }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{gateway_url}}/orders",
+              "host": ["{{gateway_url}}"],
+              "path": ["orders"]
+            },
+            "description": "Total 2 x 400.00 = 800.00 (abaixo do limite do PSP). Nasce PENDING; após ~1s a saga conclui em CONFIRMED. Salva o id em {{order_id}}."
+          },
+          "response": []
+        },
+        {
+          "name": "Criar pedido — cancela (CANCELLED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set(\"cancel_order_id\", json.id);",
+                  "pm.test(\"201 + PENDING\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(json.status).to.eql(\"PENDING\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"items\": [\n    { \"productId\": \"{{product_id}}\", \"quantity\": 3, \"unitPrice\": 400.00 }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{gateway_url}}/orders",
+              "host": ["{{gateway_url}}"],
+              "path": ["orders"]
+            },
+            "description": "Total 3 x 400.00 = 1200.00 (>= limite do PSP) -> PaymentFailed -> ReleaseStock -> CANCELLED. Salva o id em {{cancel_order_id}}; consulte GET /orders/{{cancel_order_id}}."
+          },
+          "response": []
+        },
+        {
+          "name": "Criar pedido — rejeita (REJECTED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.environment.set(\"reject_order_id\", json.id);",
+                  "pm.test(\"201 + PENDING\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(json.status).to.eql(\"PENDING\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"items\": [\n    { \"productId\": \"a4444444-4444-4444-4444-444444444444\", \"quantity\": 1, \"unitPrice\": 400.00 }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{gateway_url}}/orders",
+              "host": ["{{gateway_url}}"],
+              "path": ["orders"]
+            },
+            "description": "Produto a4444444-... está sem estoque -> StockReservationFailed -> REJECTED (sem pagamento). Salva o id em {{reject_order_id}}; consulte GET /orders/{{reject_order_id}}."
+          },
+          "response": []
+        },
+        {
+          "name": "Criar pedido — sem token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 sem token\", function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"items\": [\n    { \"productId\": \"{{product_id}}\", \"quantity\": 2, \"unitPrice\": 400.00 }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{gateway_url}}/orders",
+              "host": ["{{gateway_url}}"],
+              "path": ["orders"]
+            },
+            "description": "Exemplo didático: sem Authorization, o gateway responde 401."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/orders/{{order_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["orders", "{{order_id}}"]
+            },
+            "description": "Estado e itens do pedido. Após ~1s do caminho feliz, status = CONFIRMED."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Stock",
+      "description": "Consulta de estoque. Exige role ADMIN — usa {{admin_token}} (rode Auth > Obter token (manager) antes).",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          { "key": "token", "value": "{{admin_token}}", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Listar estoque",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/stock",
+              "host": ["{{gateway_url}}"],
+              "path": ["stock"]
+            },
+            "description": "Lista todos os itens de estoque (seed inicial). Com token de CUSTOMER retorna 403."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/stock/{{product_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["stock", "{{product_id}}"]
+            },
+            "description": "Estoque de um produto (available/reserved). 404 (stock-item-not-found) se o productId não existir."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "description": "Consulta do pagamento de um pedido.",
+      "item": [
+        {
+          "name": "Pagamento por pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/payments/{{order_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["payments", "{{order_id}}"]
+            },
+            "description": "Pagamento do pedido (status AUTHORIZED no caminho feliz). 404 (payment-not-found) se ainda não houver pagamento (ex.: pedido REJECTED)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "description": "Consulta das notificações registradas pelo notification-service.",
+      "item": [
+        {
+          "name": "Listar notificações",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/notifications",
+              "host": ["{{gateway_url}}"],
+              "path": ["notifications"]
+            },
+            "description": "Lista as notificações (mais recentes primeiro)."
+          },
+          "response": []
+        },
+        {
+          "name": "Notificações por pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/notifications/{{order_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["notifications", "{{order_id}}"]
+            },
+            "description": "Notificações do pedido. No caminho feliz: ORDER_CREATED + ORDER_CONFIRMED."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

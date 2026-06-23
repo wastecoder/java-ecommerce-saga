@@ -152,6 +152,9 @@ Todas as respostas de erro seguem **Problem Details (RFC 7807)**. O `type` é mo
 
 ## 4. Walkthrough do fluxo
 
+> Prefere uma coleção importável a copiar `curl`? Veja [`../postman/`](../postman/README.md) — coleção
+> **Postman** + script **HTTPie** com o mesmo fluxo (token, criação e os desfechos da SAGA).
+
 Passo a passo reproduzível do **caminho feliz** (pedido → `CONFIRMED`), entrando pela borda
 (`api-gateway :8080`). Estoque semeado no `inventory-service` (profile `seed`):
 

@@ -9,6 +9,7 @@ de entrada e um resumo; aqui está o detalhe. Documentação em **português**; 
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Arquitetura hexagonal, estrutura de pacotes, fluxo da SAGA (sequência + máquina de estados), tópicos/contratos Kafka e modelo de domínio. |
 | [API.md](API.md) | Referência da API REST: endpoints, autenticação por rota, taxonomia de erros (RFC 7807) e o *walkthrough* do fluxo com `curl`. |
+| [postman/](../postman/README.md) | Coleção Postman (importável) + script HTTPie para exercitar a API ponta a ponta, com instruções de uso. |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Como rodar localmente, comandos Gradle, URLs úteis, profiles/seed, Docker e CI/CD (GHCR). |
 | [TESTS.md](TESTS.md) | Estratégia de testes, Object Mother, estilo de teste, Testcontainers e gates de JaCoCo/Pitest. |
 | [OBSERVABILITY.md](OBSERVABILITY.md) | Métricas (Prometheus/Grafana) e tracing distribuído (Zipkin), inclusive pelo Kafka. |
@@ -34,6 +35,7 @@ Architecture Decision Records — o *porquê* de cada decisão estrutural.
 
 - Quero **entender a arquitetura / a SAGA** → [ARCHITECTURE.md](ARCHITECTURE.md)
 - Quero **usar a API** (endpoints, exemplos, erros) → [API.md](API.md)
+- Quero **uma coleção pronta** (Postman/HTTPie) → [postman/](../postman/README.md)
 - Quero **rodar localmente** → [DEVELOPMENT.md](DEVELOPMENT.md)
 - Quero **escrever ou rodar testes** → [TESTS.md](TESTS.md)
 - Quero **ver métricas e tracing** → [OBSERVABILITY.md](OBSERVABILITY.md)
