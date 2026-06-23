@@ -52,6 +52,9 @@ Ideias para evoluir o ShopFlow **depois** do MVP+Notification. Mesmo formato do 
 - **Critério:** logs, métricas e traces correlacionados em um só lugar.
 
 ## 📚 Fase 19 — Documentação completa
-- [ ] Adotar a pasta `doc/` (ARCHITECTURE/DEVELOPMENT/TESTS/DEPLOYMENT) + ADRs numerados,
-      no padrão dos projetos `partners-api`/`picpay-simplificado`
-- **Critério:** documentação navegável com índice e ADRs versionados.
+- [x] ~~Adotar a pasta `doc/` (ARCHITECTURE/DEVELOPMENT/TESTS/DEPLOYMENT) + ADRs numerados,
+      no padrão dos projetos `partners-api`/`picpay-simplificado`~~ — **antecipado na Fase 8**:
+      criados `doc/README.md` (hub), `ARCHITECTURE.md`, `API.md`, `DEVELOPMENT.md`, `TESTS.md` e
+      `adr/0001–0006`; o deploy ficou dobrado no `DEVELOPMENT.md` (sem `DEPLOYMENT.md`, pois não há
+      deploy de produção).
+- **Critério:** documentação navegável com índice e ADRs versionados. ✅

@@ -38,6 +38,5 @@ out/
 
 ### ShopFlow ###
 CLAUDE.md
-doc/CHALLENGE.md
 .env
 !.env.example
