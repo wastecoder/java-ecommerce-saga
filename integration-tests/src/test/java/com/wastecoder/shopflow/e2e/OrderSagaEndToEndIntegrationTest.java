@@ -88,8 +88,11 @@ class OrderSagaEndToEndIntegrationTest {
 
 	@BeforeAll
 	static void startInfrastructureAndServices() throws Exception {
-		kafka = new KafkaContainer(DockerImageName.parse("apache/kafka-native:latest"));
-		postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:latest"));
+		// Tags pinned to match docker-compose; a generous startup timeout avoids flaky readiness on slow CI runners.
+		kafka = new KafkaContainer(DockerImageName.parse("apache/kafka-native:4.3.0"));
+		postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:17"));
+		kafka.withStartupTimeout(Duration.ofMinutes(2));
+		postgres.withStartupTimeout(Duration.ofMinutes(2));
 		keycloak = new KeycloakContainer("quay.io/keycloak/keycloak:26.6.3")
 				.withRealmImportFile("/keycloak/realm-export.json");
 		kafka.start();
