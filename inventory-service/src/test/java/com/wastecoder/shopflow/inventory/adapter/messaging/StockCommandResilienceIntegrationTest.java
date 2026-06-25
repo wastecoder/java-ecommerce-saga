@@ -16,6 +16,7 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,10 +26,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.test.utils.ContainerTestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -52,6 +55,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class StockCommandResilienceIntegrationTest {
 
+	private static final String EVENTS_CAPTURE_ID = "resilience-events-capture";
+	private static final String DLT_CAPTURE_ID = "resilience-dlt-capture";
 	private static final BlockingQueue<EventEnvelope> INVENTORY_EVENTS = new LinkedBlockingQueue<>();
 	private static final BlockingQueue<ConsumerRecord<String, byte[]>> DLT = new LinkedBlockingQueue<>();
 
@@ -69,6 +74,17 @@ class StockCommandResilienceIntegrationTest {
 
 	@Autowired
 	private ProcessedMessageRepository processedMessages;
+
+	@Autowired
+	private KafkaListenerEndpointRegistry registry;
+
+	@BeforeEach
+	void awaitAssignment() {
+		// inventory.events and inventory.commands.DLT are declared with 3 partitions; wait until both capture
+		// consumers own them before producing so the asserts cannot race the groups' first rebalance.
+		ContainerTestUtils.waitForAssignment(registry.getListenerContainer(EVENTS_CAPTURE_ID), 3);
+		ContainerTestUtils.waitForAssignment(registry.getListenerContainer(DLT_CAPTURE_ID), 3);
+	}
 
 	@Test
 	@DisplayName("Given a ReserveStock command redelivered with the same eventId, when consumed twice, then stock is reserved once and only one reply is published")
@@ -138,8 +154,9 @@ class StockCommandResilienceIntegrationTest {
 	}
 
 	/**
-	 * Polls until a reservation for the order reaches {@code status} — the reply event can be observed before
-	 * the use case's transaction commits, so gate the DB assertions on the committed source of truth.
+	 * Polls until a reservation for the order reaches {@code status}. The reply is published after the use
+	 * case's transaction commits, so observing it implies the rows are committed; the brief poll stays as a
+	 * defensive guard against read-your-writes lag on the shared database.
 	 */
 	private void awaitReservationStatus(UUID orderId, ReservationStatus status) throws InterruptedException {
 		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
@@ -185,12 +202,12 @@ class StockCommandResilienceIntegrationTest {
 	@TestConfiguration
 	static class CaptureConfig {
 
-		@KafkaListener(topics = Topics.INVENTORY_EVENTS, groupId = "inventory-resilience-events")
+		@KafkaListener(id = EVENTS_CAPTURE_ID, topics = Topics.INVENTORY_EVENTS, groupId = "inventory-resilience-events")
 		void onInventoryEvent(EventEnvelope envelope) {
 			INVENTORY_EVENTS.add(envelope);
 		}
 
-		@KafkaListener(topics = Topics.INVENTORY_COMMANDS + ".DLT", groupId = "inventory-resilience-dlt",
+		@KafkaListener(id = DLT_CAPTURE_ID, topics = Topics.INVENTORY_COMMANDS + ".DLT", groupId = "inventory-resilience-dlt",
 				containerFactory = "dltBytesFactory")
 		void onDeadLetter(ConsumerRecord<String, byte[]> dlqRecord) {
 			DLT.add(dlqRecord);

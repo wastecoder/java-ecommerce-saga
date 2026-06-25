@@ -8,6 +8,7 @@ import com.wastecoder.shopflow.inventory.domain.model.ReservationStatus;
 import com.wastecoder.shopflow.inventory.domain.model.StockItem;
 import com.wastecoder.shopflow.inventory.domain.model.StockReservation;
 import com.wastecoder.shopflow.inventory.testsupport.mother.StockItemMother;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.test.utils.ContainerTestUtils;
 
 import java.time.Duration;
 import java.util.List;
@@ -35,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class StockCommandFlowIntegrationTest {
 
+	private static final String CAPTURE_ID = "flow-events-capture";
 	private static final BlockingQueue<EventEnvelope> INVENTORY_EVENTS = new LinkedBlockingQueue<>();
 
 	@Autowired
@@ -45,6 +49,16 @@ class StockCommandFlowIntegrationTest {
 
 	@Autowired
 	private StockReservationRepository reservationRepository;
+
+	@Autowired
+	private KafkaListenerEndpointRegistry registry;
+
+	@BeforeEach
+	void awaitAssignment() {
+		// inventory.events is declared with 3 partitions; wait until the capture consumer owns them before
+		// driving the saga so the reply cannot race the group's first rebalance.
+		ContainerTestUtils.waitForAssignment(registry.getListenerContainer(CAPTURE_ID), 3);
+	}
 
 	@Test
 	@DisplayName("Given enough stock, when a ReserveStock command arrives, then StockReserved is published and stock/reservation reflect the reservation")
@@ -122,9 +136,9 @@ class StockCommandFlowIntegrationTest {
 	}
 
 	/**
-	 * Polls until a reservation for the order reaches {@code status}. The reply event is published inside the
-	 * use case's transaction but the Kafka send is not bound to the DB commit, so observing the event does not
-	 * guarantee the rows are committed yet — gate the subsequent reads on the committed source of truth.
+	 * Polls until a reservation for the order reaches {@code status}. The reply is published after the use
+	 * case's transaction commits, so observing it implies the rows are committed; the brief poll stays as a
+	 * defensive guard against read-your-writes lag on the shared database.
 	 */
 	private void awaitReservationStatus(UUID orderId, ReservationStatus status) throws InterruptedException {
 		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
@@ -140,7 +154,7 @@ class StockCommandFlowIntegrationTest {
 	@TestConfiguration
 	static class CaptureConfig {
 
-		@KafkaListener(topics = Topics.INVENTORY_EVENTS, groupId = "inventory-flow-it-capture")
+		@KafkaListener(id = CAPTURE_ID, topics = Topics.INVENTORY_EVENTS, groupId = "inventory-flow-it-capture")
 		void onInventoryEvent(EventEnvelope envelope) {
 			INVENTORY_EVENTS.add(envelope);
 		}
