@@ -88,11 +88,14 @@ class OrderSagaEndToEndIntegrationTest {
 
 	@BeforeAll
 	static void startInfrastructureAndServices() throws Exception {
-		// Tags pinned to match docker-compose; a generous startup timeout avoids flaky readiness on slow CI runners.
+		// Tags pinned to match docker-compose; a generous startup timeout plus start retries absorb the
+		// occasional flaky container readiness seen on CI runners.
 		kafka = new KafkaContainer(DockerImageName.parse("apache/kafka-native:4.3.0"));
 		postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:17"));
 		kafka.withStartupTimeout(Duration.ofMinutes(2));
+		kafka.withStartupAttempts(3);
 		postgres.withStartupTimeout(Duration.ofMinutes(2));
+		postgres.withStartupAttempts(3);
 		keycloak = new KeycloakContainer("quay.io/keycloak/keycloak:26.6.3")
 				.withRealmImportFile("/keycloak/realm-export.json");
 		kafka.start();

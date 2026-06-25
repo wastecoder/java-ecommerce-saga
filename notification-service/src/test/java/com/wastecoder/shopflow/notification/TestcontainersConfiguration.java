@@ -35,8 +35,12 @@ public class TestcontainersConfiguration {
 			new PostgreSQLContainer(DockerImageName.parse("postgres:17"));
 
 	static {
+		// Start the shared singletons with retries: container readiness is occasionally flaky on CI runners,
+		// and a single failed start would otherwise fail the whole module (they are started once, statically).
 		KAFKA.withStartupTimeout(Duration.ofMinutes(2));
+		KAFKA.withStartupAttempts(3);
 		POSTGRES.withStartupTimeout(Duration.ofMinutes(2));
+		POSTGRES.withStartupAttempts(3);
 		KAFKA.start();
 		POSTGRES.start();
 	}
