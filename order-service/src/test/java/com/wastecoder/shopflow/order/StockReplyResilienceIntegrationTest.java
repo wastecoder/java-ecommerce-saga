@@ -91,8 +91,9 @@ class StockReplyResilienceIntegrationTest {
 	}
 
 	/**
-	 * Polls until the order reaches {@code status} — the order event can be observed before the coordinator's
-	 * transaction commits, so poll the source of truth instead of reading once.
+	 * Polls until the order reaches {@code status} — the saga command's Kafka send is deferred to after the
+	 * coordinator's transaction commits, so poll the source of truth to stay immune to read-after-write timing
+	 * on the broker instead of reading once.
 	 */
 	private void awaitStatus(UUID orderId, OrderStatus status) throws InterruptedException {
 		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();

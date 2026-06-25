@@ -4,6 +4,7 @@ import com.wastecoder.shopflow.order.TestcontainersConfiguration;
 import com.wastecoder.shopflow.order.application.port.out.EventPublisher;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,8 +12,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.test.utils.ContainerTestUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -32,10 +36,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class KafkaTracePropagationIntegrationTest {
 
+	private static final String CAPTURE_ID = "trace-events-capture";
 	private static final BlockingQueue<ConsumerRecord<String, EventEnvelope>> RECEIVED = new LinkedBlockingQueue<>();
 
 	@Autowired
 	private EventPublisher publisher;
+
+	@Autowired
+	private KafkaListenerEndpointRegistry registry;
+
+	@BeforeEach
+	void awaitAssignment() {
+		// order.events is declared with 3 partitions; wait until the capture consumer owns them so the
+		// publish below cannot race the group's first rebalance.
+		ContainerTestUtils.waitForAssignment(registry.getListenerContainer(CAPTURE_ID), 3);
+	}
 
 	@Test
 	@DisplayName("Given Kafka observation is enabled, when an envelope is published, then the consumed record carries a W3C traceparent header (trace context propagated over Kafka)")
@@ -46,8 +61,10 @@ class KafkaTracePropagationIntegrationTest {
 
 		publisher.publish("order.events", orderId, "OrderCreated", payload);
 
-		ConsumerRecord<String, EventEnvelope> record = RECEIVED.poll(15, TimeUnit.SECONDS);
-		assertThat(record).as("a record should be consumed from order.events").isNotNull();
+		// The broker is shared across the suite, so order.events also carries other tests' events;
+		// match on this order's key rather than asserting on the first record polled.
+		ConsumerRecord<String, EventEnvelope> record = awaitRecordFor(orderId);
+		assertThat(record).as("a record for this order should be consumed from order.events").isNotNull();
 
 		Header traceparent = record.headers().lastHeader("traceparent");
 		assertThat(traceparent).as("the producer should inject the W3C trace context into the Kafka headers").isNotNull();
@@ -57,10 +74,21 @@ class KafkaTracePropagationIntegrationTest {
 			.matches("00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}");
 	}
 
+	private ConsumerRecord<String, EventEnvelope> awaitRecordFor(String orderId) throws InterruptedException {
+		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+		while (System.nanoTime() < deadline) {
+			ConsumerRecord<String, EventEnvelope> record = RECEIVED.poll(1, TimeUnit.SECONDS);
+			if (record != null && orderId.equals(record.key())) {
+				return record;
+			}
+		}
+		return null;
+	}
+
 	@TestConfiguration
 	static class TestListenerConfig {
 
-		@KafkaListener(topics = "order.events", groupId = "order-trace-propagation-test")
+		@KafkaListener(id = CAPTURE_ID, topics = "order.events", groupId = "order-trace-propagation-test")
 		void collect(ConsumerRecord<String, EventEnvelope> record) {
 			RECEIVED.add(record);
 		}

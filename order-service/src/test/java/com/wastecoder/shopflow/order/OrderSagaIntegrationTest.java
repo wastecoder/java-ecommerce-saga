@@ -129,9 +129,9 @@ class OrderSagaIntegrationTest {
 	}
 
 	/**
-	 * Polls until the order reaches {@code status}. The order event is published inside the coordinator's
-	 * transaction but the Kafka send is not bound to the DB commit, so observing the event does not guarantee
-	 * the new status is committed yet — poll the source of truth instead of reading once.
+	 * Polls until the order reaches {@code status}. The order event's Kafka send is deferred to after the
+	 * coordinator's transaction commits, so by the time the event is observed the new status is committed;
+	 * polling the source of truth still keeps the assertion immune to read-after-write timing on the broker.
 	 */
 	private void awaitStatus(UUID orderId, OrderStatus status) throws InterruptedException {
 		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
