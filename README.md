@@ -6,8 +6,8 @@ confirmação entre microsserviços autônomos (hexagonais, *database-per-servic
 e **compensação** automática nos cenários de falha. Projeto backend, com clientes simulados via REST
 (Postman/`curl`/testes).
 
-[![CI](https://github.com/wastecoder/shopflow/actions/workflows/ci.yml/badge.svg)](https://github.com/wastecoder/shopflow/actions/workflows/ci.yml)
-[![Publish images](https://github.com/wastecoder/shopflow/actions/workflows/publish-images.yml/badge.svg)](https://github.com/wastecoder/shopflow/actions/workflows/publish-images.yml)
+[![CI](https://github.com/wastecoder/java-ecommerce-saga/actions/workflows/ci.yml/badge.svg)](https://github.com/wastecoder/java-ecommerce-saga/actions/workflows/ci.yml)
+[![Publish images](https://github.com/wastecoder/java-ecommerce-saga/actions/workflows/publish-images.yml/badge.svg)](https://github.com/wastecoder/java-ecommerce-saga/actions/workflows/publish-images.yml)
 ![Java](https://img.shields.io/badge/Java-21-orange)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.7-6DB33F)
 ![Spring Cloud](https://img.shields.io/badge/Spring%20Cloud-2025.1.1%20Oakwood-6DB33F)
