@@ -5,6 +5,7 @@ import com.wastecoder.shopflow.payment.application.port.out.EventPublisher;
 import com.wastecoder.shopflow.payment.application.port.out.PaymentRepository;
 import com.wastecoder.shopflow.payment.domain.model.Payment;
 import com.wastecoder.shopflow.payment.domain.model.PaymentStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
+import org.springframework.kafka.test.utils.ContainerTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -34,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class PaymentCommandFlowIntegrationTest {
 
+	private static final String CAPTURE_ID = "flow-events-capture";
 	private static final BlockingQueue<EventEnvelope> PAYMENT_EVENTS = new LinkedBlockingQueue<>();
 
 	@Autowired
@@ -41,6 +45,16 @@ class PaymentCommandFlowIntegrationTest {
 
 	@Autowired
 	private PaymentRepository paymentRepository;
+
+	@Autowired
+	private KafkaListenerEndpointRegistry registry;
+
+	@BeforeEach
+	void awaitAssignment() {
+		// payment.events is declared with 3 partitions; wait until the capture consumer owns them before
+		// driving the saga so the reply cannot race the group's first rebalance.
+		ContainerTestUtils.waitForAssignment(registry.getListenerContainer(CAPTURE_ID), 3);
+	}
 
 	@Test
 	@DisplayName("Given an amount below the decline threshold, when a ProcessPayment command arrives, then PaymentAuthorized is published and an AUTHORIZED payment is persisted")
@@ -105,9 +119,9 @@ class PaymentCommandFlowIntegrationTest {
 	}
 
 	/**
-	 * Polls the repository until the payment reaches {@code status}. The reply event is published inside the
-	 * use case's transaction but the Kafka send is not bound to the DB commit, so observing the event does not
-	 * guarantee the row is committed yet — poll the source of truth instead of reading once.
+	 * Polls the repository until the payment reaches {@code status}. The reply is published after the use
+	 * case's transaction commits, so observing it implies the row is committed; the brief poll stays as a
+	 * defensive guard against read-your-writes lag on the shared database.
 	 */
 	private Payment awaitPayment(UUID orderId, PaymentStatus status) throws InterruptedException {
 		long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
@@ -124,7 +138,7 @@ class PaymentCommandFlowIntegrationTest {
 	@TestConfiguration
 	static class CaptureConfig {
 
-		@KafkaListener(topics = Topics.PAYMENT_EVENTS, groupId = "payment-flow-it-capture")
+		@KafkaListener(id = CAPTURE_ID, topics = Topics.PAYMENT_EVENTS, groupId = "payment-flow-it-capture")
 		void onPaymentEvent(EventEnvelope envelope) {
 			PAYMENT_EVENTS.add(envelope);
 		}

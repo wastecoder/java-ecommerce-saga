@@ -12,6 +12,7 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,10 +22,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.test.utils.ContainerTestUtils;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -48,6 +51,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 class PaymentCommandResilienceIntegrationTest {
 
+	private static final String EVENTS_CAPTURE_ID = "resilience-events-capture";
+	private static final String DLT_CAPTURE_ID = "resilience-dlt-capture";
 	private static final BlockingQueue<EventEnvelope> PAYMENT_EVENTS = new LinkedBlockingQueue<>();
 	private static final BlockingQueue<ConsumerRecord<String, byte[]>> DLT = new LinkedBlockingQueue<>();
 
@@ -62,6 +67,17 @@ class PaymentCommandResilienceIntegrationTest {
 
 	@Autowired
 	private ProcessedMessageRepository processedMessages;
+
+	@Autowired
+	private KafkaListenerEndpointRegistry registry;
+
+	@BeforeEach
+	void awaitAssignment() {
+		// payment.events and payment.commands.DLT are declared with 3 partitions; wait until both capture
+		// consumers own them before producing so the asserts cannot race the groups' first rebalance.
+		ContainerTestUtils.waitForAssignment(registry.getListenerContainer(EVENTS_CAPTURE_ID), 3);
+		ContainerTestUtils.waitForAssignment(registry.getListenerContainer(DLT_CAPTURE_ID), 3);
+	}
 
 	@Test
 	@DisplayName("Given a ProcessPayment command redelivered with the same eventId, when consumed twice, then the payment is authorized once and only one reply is published")
@@ -159,12 +175,12 @@ class PaymentCommandResilienceIntegrationTest {
 	@TestConfiguration
 	static class CaptureConfig {
 
-		@KafkaListener(topics = Topics.PAYMENT_EVENTS, groupId = "payment-resilience-events")
+		@KafkaListener(id = EVENTS_CAPTURE_ID, topics = Topics.PAYMENT_EVENTS, groupId = "payment-resilience-events")
 		void onPaymentEvent(EventEnvelope envelope) {
 			PAYMENT_EVENTS.add(envelope);
 		}
 
-		@KafkaListener(topics = Topics.PAYMENT_COMMANDS + ".DLT", groupId = "payment-resilience-dlt",
+		@KafkaListener(id = DLT_CAPTURE_ID, topics = Topics.PAYMENT_COMMANDS + ".DLT", groupId = "payment-resilience-dlt",
 				containerFactory = "dltBytesFactory")
 		void onDeadLetter(ConsumerRecord<String, byte[]> dlqRecord) {
 			DLT.add(dlqRecord);
